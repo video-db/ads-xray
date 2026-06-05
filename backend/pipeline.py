@@ -36,15 +36,19 @@ def _parse_overlay(description: str) -> str:
     return description.strip()[:120]
 
 
-def analyze_ad(youtube_url: str, job_id: str):
+def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
     db = get_db()
 
     try:
         conn = videodb.connect()
         coll = conn.get_collection()
 
-        _update(db, job_id, "processing", "uploading")
-        video = coll.upload(url=youtube_url, media_type=MediaType.video)
+        if video_id:
+            _update(db, job_id, "processing", "loading_video")
+            video = coll.get_video(video_id)
+        else:
+            _update(db, job_id, "processing", "uploading")
+            video = coll.upload(url=youtube_url, media_type=MediaType.video)
         video_duration = float(video.length)
 
         _update(db, job_id, "processing", "analyzing_scenes")

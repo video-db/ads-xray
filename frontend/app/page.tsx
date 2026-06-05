@@ -11,15 +11,18 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async (url: string) => {
+  const handleSubmit = async (url: string, videoId?: string) => {
     setSubmitting(true);
     setError("");
 
     try {
+      const body: Record<string, string> = { youtube_url: url };
+      if (videoId) body.video_id = videoId;
+
       const res = await fetch(`${API_URL}/api/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ youtube_url: url }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {

@@ -11,9 +11,25 @@ from videodb.editor import (
     Background,
     TextAlignment,
     Border,
-    Shadow,
     Transition,
 )
+
+
+def _wrap_text(text: str, max_chars: int = 72) -> str:
+    if len(text) <= max_chars:
+        return text
+    words = text.split()
+    lines = []
+    current = ""
+    for w in words:
+        if len(current) + len(w) + 1 <= max_chars:
+            current = (current + " " + w) if current else w
+        else:
+            lines.append(current)
+            current = w
+    if current:
+        lines.append(current)
+    return "\n".join(lines)
 
 
 def build_timeline(conn, video_id: str, total_duration: float, scenes: list[dict]) -> str:
@@ -42,30 +58,33 @@ def build_timeline(conn, video_id: str, total_duration: float, scenes: list[dict
         if overlay_dur <= 0:
             continue
 
+        wrapped = _wrap_text(scene["overlay_text"])
+        lines = wrapped.count("\n") + 1
+        box_height = 64 if lines == 1 else 64 + (lines - 1) * 40
+
         text_track.add_clip(
             start,
             Clip(
                 asset=TextAsset(
-                    text=scene["overlay_text"],
+                    text=wrapped,
+                    width=1680,
                     font=Font(
                         family="Inter",
-                        size=28,
+                        size=32,
                         color="#FFFFFF",
-                        opacity=1.0,
                     ),
                     background=Background(
-                        width=1700,
-                        height=80,
-                        color="#0EA5E9",
-                        opacity=0.85,
+                        width=1720,
+                        height=box_height,
+                        color="#0369A1",
+                        opacity=0.65,
                         text_alignment=TextAlignment.center,
                     ),
-                    border=Border(color="#38BDF8", width=1.5),
-                    shadow=Shadow(color="#000000", x=0, y=2),
+                    border=Border(color="#0C4A6E", width=1.0),
                 ),
                 duration=overlay_dur,
-                position=Position.bottom,
-                offset=Offset(x=0, y=-0.04),
+                position=Position.center,
+                offset=Offset(x=0, y=0.40),
                 transition=Transition(in_="fade", out="fade", duration=0.3),
             ),
         )

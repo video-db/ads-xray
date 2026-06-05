@@ -33,7 +33,8 @@ def analyze(req: AnalyzeRequest):
     db.commit()
     db.close()
 
-    thread = threading.Thread(target=analyze_ad, args=(req.youtube_url, job_id), daemon=True)
+    video_id = req.video_id or ""
+    thread = threading.Thread(target=analyze_ad, args=(req.youtube_url, job_id, video_id), daemon=True)
     thread.start()
 
     return AnalyzeResponse(job_id=job_id)
