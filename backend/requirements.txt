@@ -1,0 +1,5 @@
+videodb
+fastapi
+uvicorn[standard]
+python-dotenv
+pydantic
