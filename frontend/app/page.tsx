@@ -1,25 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import URLInput from "./components/URLInput";
 import ApiKeyGate from "./components/ApiKeyGate";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-function getApiKey(): string | null {
+function getStoredKey(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("adxray_api_key");
 }
 
+interface HistoryRun {
+  job_id: string;
+  video_name: string;
+  youtube_url: string;
+  status: string;
+  manipulation_score: number;
+  duration: number;
+  created_at: string;
+}
+
 export default function Home() {
   const router = useRouter();
-  const [apiKey, setApiKey] = useState<string | null>(() => getApiKey());
+  const [mounted, setMounted] = useState(false);
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<HistoryRun[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    setMounted(true);
+    const stored = getStoredKey();
+    setApiKey(stored);
+    if (!stored) setHistoryLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!apiKey || !mounted) return;
+    setHistoryLoading(true);
+    fetch(`${API_URL}/api/history`, {
+      headers: { "X-VideoDB-Key": apiKey },
+    })
+      .then((r) => r.json())
+      .then((data) => setHistory(data.runs || []))
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false));
+  }, [apiKey, mounted]);
+
+  function handleKeySet(key: string) {
+    localStorage.setItem("adxray_api_key", key);
+    setApiKey(key);
+  }
+
+  function handleKeyClear() {
+    localStorage.removeItem("adxray_api_key");
+    setApiKey(null);
+    setHistory([]);
+  }
+
+  if (!mounted) return null;
 
   if (!apiKey) {
-    return <ApiKeyGate onKeySet={setApiKey} />;
+    return <ApiKeyGate onKeySet={handleKeySet} />;
   }
 
   const handleSubmit = async (url: string, videoId?: string) => {
@@ -35,7 +80,7 @@ export default function Home() {
 
       const res = await fetch(`${API_URL}/api/analyze`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-VideoDB-Key": apiKey || "" },
+        headers: { "Content-Type": "application/json", "X-VideoDB-Key": apiKey },
         body: JSON.stringify(body),
       });
 
@@ -54,8 +99,8 @@ export default function Home() {
 
   return (
     <main className="flex-1 flex flex-col">
-        <section className="flex-1 flex flex-col items-center justify-center px-6 py-16 sm:py-24 min-h-screen">
-          <div className="text-center max-w-3xl mb-8 sm:mb-12">
+      <section className="flex-1 flex flex-col items-center justify-center px-6 py-16 sm:py-24 min-h-screen">
+        <div className="text-center max-w-3xl mb-8 sm:mb-12">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface border border-border mb-8">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="text-xs font-mono text-text-muted uppercase tracking-widest">
@@ -80,6 +125,10 @@ export default function Home() {
 
         {error && (
           <p className="mt-4 text-sm text-danger">{error}</p>
+        )}
+
+        {history.length > 0 && (
+          <HistoryPanel runs={history} loading={historyLoading} onSelect={(id) => router.push(`/result/${id}`)} />
         )}
       </section>
 
@@ -172,10 +221,7 @@ export default function Home() {
               An art project about power, perception, and manufactured desire.
             </p>
             <button
-              onClick={() => {
-                localStorage.removeItem("adxray_api_key");
-                setApiKey(null);
-              }}
+              onClick={handleKeyClear}
               className="text-xs text-text-subtle hover:text-danger transition-colors cursor-pointer"
             >
               Change API Key
@@ -184,5 +230,62 @@ export default function Home() {
         </div>
       </footer>
     </main>
+  );
+}
+
+function HistoryPanel({
+  runs,
+  loading,
+  onSelect,
+}: {
+  runs: HistoryRun[];
+  loading: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const completed = runs.filter((r) => r.status === "completed");
+  const failed = runs.filter((r) => r.status === "failed");
+
+  if (loading || completed.length === 0) return null;
+
+  return (
+    <div className="w-full max-w-xl mx-auto mt-12">
+      <h3 className="text-xs font-mono text-text-subtle uppercase tracking-widest mb-3">
+        Recent Analyses
+      </h3>
+      <div className="space-y-1.5">
+        {completed.slice(0, 5).map((run) => (
+          <button
+            key={run.job_id}
+            onClick={() => onSelect(run.job_id)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-card bg-surface border border-border hover:border-primary/30 transition-all duration-150 cursor-pointer text-left group"
+          >
+            <span className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm text-foreground block truncate">
+                {run.video_name || "Untitled"}
+              </span>
+              <span className="text-[11px] text-text-subtle block truncate">
+                {run.youtube_url ? new URL(run.youtube_url).hostname : ""}
+                {run.duration ? ` · ${Math.round(run.duration)}s` : ""}
+              </span>
+            </div>
+            <span className="text-xs font-mono text-text-muted flex-shrink-0">
+              {run.manipulation_score > 0 ? `${run.manipulation_score}/10` : ""}
+            </span>
+          </button>
+        ))}
+        {failed.slice(0, 2).map((run) => (
+          <div
+            key={run.job_id}
+            className="flex items-center gap-3 px-4 py-3 rounded-card bg-surface border border-border opacity-50"
+          >
+            <span className="w-2 h-2 rounded-full bg-danger flex-shrink-0" />
+            <span className="text-sm text-text-muted truncate flex-1">
+              {run.video_name || "Unknown"} — Failed
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
