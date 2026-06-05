@@ -224,13 +224,13 @@ def get_history(request: Request, api_key: str = Header(..., alias="X-VideoDB-Ke
     db = get_db()
 
     total = db.execute(
-        "SELECT COUNT(*) FROM jobs WHERE api_key_hash=?",
+        "SELECT COUNT(*) FROM jobs WHERE api_key_hash=? AND status IN ('completed','failed')",
         (key_hash,),
     ).fetchone()[0]
 
     offset = (page - 1) * per_page
     rows = db.execute(
-        "SELECT id, video_name, youtube_url, status, duration, error, report_json, created_at FROM jobs WHERE api_key_hash=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        "SELECT id, video_name, status, duration, error, report_json, created_at FROM jobs WHERE api_key_hash=? AND status IN ('completed','failed') ORDER BY created_at DESC LIMIT ? OFFSET ?",
         (key_hash, per_page, offset),
     ).fetchall()
     db.close()

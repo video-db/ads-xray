@@ -40,7 +40,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!apiKey || !mounted) return;
-    fetch(`${API_URL}/api/history?per_page=4`, {
+    fetch(`${API_URL}/api/history?per_page=10`, {
       headers: { "X-VideoDB-Key": apiKey },
     })
       .then((r) => r.json())
@@ -129,7 +129,7 @@ export default function Home() {
                 onClick={() => router.push("/history")}
                 className="text-xs text-primary hover:underline cursor-pointer"
               >
-                View all
+                View History →
               </button>
             </div>
             <div className="space-y-1.5">
