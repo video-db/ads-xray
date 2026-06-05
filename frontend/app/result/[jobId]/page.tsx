@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import VideoPlayer from "@/app/components/VideoPlayer";
+import ProgressTracker from "@/app/components/ProgressTracker";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -39,6 +40,9 @@ interface JobResult {
   target_audience?: string;
   symbols_exploited?: string[];
   narrative?: Narrative | null;
+  manipulation_score?: number;
+  defense_strategies?: { technique_targeted: string; strategy: string; question_to_ask: string }[];
+  empowerment_message?: string;
   error?: string;
 }
 
@@ -101,7 +105,7 @@ export default function ResultPage() {
   if (!data) {
     return (
       <main className="flex-1 flex items-center justify-center px-6">
-        <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        <ProgressTracker progress="queued" />
       </main>
     );
   }
@@ -124,7 +128,21 @@ export default function ResultPage() {
             videoName={data.video_name}
             youtubeUrl={data.youtube_url}
             duration={data.duration}
+            manipulationScore={data.manipulation_score}
+            defenseStrategies={data.defense_strategies}
+            empowermentMessage={data.empowerment_message}
           />
+        </div>
+      </main>
+    );
+  }
+
+  if (data.status === "failed") {
+    return (
+      <main className="flex-1 flex items-center justify-center px-6">
+        <div className="text-center">
+          <ProgressTracker progress={data.progress || "error"} />
+          <p className="text-text-muted mt-4">{data.error || "Analysis failed. Please try again."}</p>
         </div>
       </main>
     );
@@ -132,7 +150,7 @@ export default function ResultPage() {
 
   return (
     <main className="flex-1 flex items-center justify-center px-6">
-      <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      <ProgressTracker progress={data.progress || "queued"} />
     </main>
   );
 }

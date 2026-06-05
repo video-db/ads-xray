@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from models import AnalyzeRequest, AnalyzeResponse, StatusResponse, ResultResponse, SceneResult
+from models import AnalyzeRequest, AnalyzeResponse, StatusResponse, ResultResponse, SceneResult, DefenseStrategy
 from db import get_db
 from pipeline import analyze_ad
 
@@ -87,7 +87,17 @@ def get_result(job_id: str):
 
     import json as _json
     report = _json.loads(row["report_json"] or "{}")
+    manipulation_score = report.get("manipulation_score", 0) or 0
     narrative = _json.loads(row["narrative_json"] or "{}")
+    defense_data = _json.loads(row["defense_json"] or "{}")
+    defense_strategies = []
+    for ds in defense_data.get("defense_strategies", []) or []:
+        defense_strategies.append(DefenseStrategy(
+            technique_targeted=ds.get("technique_targeted", ""),
+            strategy=ds.get("strategy", ""),
+            question_to_ask=ds.get("question_to_ask", ""),
+        ))
+    empowerment_message = defense_data.get("empowerment_message", "")
     return ResultResponse(
         job_id=row["id"],
         status=row["status"],
@@ -103,6 +113,9 @@ def get_result(job_id: str):
         ad_archetype=report.get("ad_archetype", ""),
         target_audience=report.get("target_audience", ""),
         symbols_exploited=report.get("symbols_exploited", []) or [],
+        manipulation_score=manipulation_score,
+        defense_strategies=defense_strategies,
+        empowerment_message=empowerment_message,
         narrative=narrative if narrative else None,
         error=row["error"],
     )

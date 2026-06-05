@@ -25,6 +25,7 @@ def init_db():
             duration REAL,
             report_json TEXT,
             narrative_json TEXT DEFAULT '{}',
+            defense_json TEXT DEFAULT '{}',
             video_name TEXT DEFAULT '',
             video_id_used TEXT DEFAULT '',
             error TEXT,
@@ -44,6 +45,10 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_scenes_job ON scenes(job_id);
     """)
+    try:
+        conn.execute("ALTER TABLE jobs ADD COLUMN defense_json TEXT DEFAULT '{}'")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 

@@ -25,6 +25,12 @@ class SceneResult(BaseModel):
     description: str
 
 
+class DefenseStrategy(BaseModel):
+    technique_targeted: str
+    strategy: str
+    question_to_ask: str
+
+
 class ResultResponse(BaseModel):
     job_id: str
     status: str
@@ -40,5 +46,8 @@ class ResultResponse(BaseModel):
     ad_archetype: str = ""
     target_audience: str = ""
     symbols_exploited: list[str] = []
+    manipulation_score: float = 0.0
+    defense_strategies: list[DefenseStrategy] = []
+    empowerment_message: str = ""
     narrative: Optional[dict] = None
     error: Optional[str] = None

@@ -40,6 +40,7 @@ Return a JSON object with these exact fields:
   "ad_archetype": "e.g. Aspirational Luxury, Fear-Based, Problem-Solution, Identity Sale",
   "target_audience": "Brief description of who this ad targets",
   "symbols_exploited": ["Symbol = ImpliedMeaning", "e.g. Sports Car=Freedom, Watch=Legacy, Child=Responsibility"],
+  "manipulation_score": 7,
   "key_moments": [
     {{
       "start_time": 0.0,
@@ -57,6 +58,7 @@ IMPORTANT RULES:
 - end_time = end of the LAST raw scene in the group
 - overlay must use the evidence→manipulation pattern, exposing HOW the visuals persuade
 - symbols_exploited should list what cultural symbols are being leveraged (cars=freedom, watches=status, etc.)
+- manipulation_score must be a number 1-10 reflecting overall manipulative intensity of the whole ad.
 - Return ONLY valid JSON, no markdown wrapping."""
 
 AUDIO_PROMPT = """Analyze this advertisement transcript for psychological manipulation in the spoken words.
@@ -75,6 +77,25 @@ Return JSON:
 }}
 
 Return ONLY valid JSON, no markdown wrapping."""
+
+DEFENSE_PROMPT = """Based on this psychological analysis of an advertisement, generate defense strategies that return critical agency to the viewer.
+
+Analysis:
+{report_summary}
+
+Return JSON:
+{{
+  "defense_strategies": [
+    {{
+      "technique_targeted": "Name of the manipulation technique being countered",
+      "strategy": "1-2 sentences on how to recognize and resist this specific technique when you encounter it in any ad",
+      "question_to_ask": "One simple, powerful question the viewer can ask themselves to break the spell of this manipulation"
+    }}
+  ],
+  "empowerment_message": "A 2-3 sentence empowering closing message about media literacy, psychological autonomy, and conscious consumption"
+}}
+
+Generate 3-5 strategies. Be practical, actionable, and psychologically sound. Return ONLY valid JSON, no markdown wrapping."""
 
 MAX_SCENES_CHARS = 80000
 
@@ -167,6 +188,24 @@ def _build_audio_analysis(coll, transcript: str) -> dict:
     return _parse_json(result)
 
 
+def _build_defense_strategies(coll, report: dict) -> dict:
+    summary = json.dumps({
+        "ad_archetype": report.get("ad_archetype", ""),
+        "primary_technique": report.get("primary_technique", ""),
+        "emotional_triggers": report.get("emotional_triggers", []) or [],
+        "cognitive_biases": report.get("cognitive_biases", []) or [],
+        "symbols_exploited": report.get("symbols_exploited", []) or [],
+        "target_audience": report.get("target_audience", ""),
+        "breakdown": report.get("breakdown", "")[:800],
+    })
+    result = coll.generate_text(
+        prompt=DEFENSE_PROMPT.format(report_summary=summary),
+        response_type="json",
+        model_name="pro",
+    )
+    return _parse_json(result)
+
+
 def _parse_json(result) -> dict:
     if isinstance(result, dict):
         output = result.get("output", result)
@@ -249,6 +288,9 @@ def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
             _update(db, job_id, "processing", "analyzing_audio")
             narrative = _build_audio_analysis(coll, transcript)
 
+        _update(db, job_id, "processing", "generating_defense")
+        defense = _build_defense_strategies(coll, report)
+
         key_moments = report.get("key_moments", [])
 
         if not key_moments:
@@ -290,16 +332,17 @@ def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
 
         report_json = json.dumps(report)
         narrative_json = json.dumps(narrative) if narrative else "{}"
+        defense_json = json.dumps(defense) if defense else "{}"
         now = datetime.now(timezone.utc).isoformat()
 
         db.execute(
             """UPDATE jobs SET status='completed', progress='done',
                stream_url=?, duration=?, completed_at=?,
-               report_json=?, narrative_json=?, video_name=?,
-               youtube_url=?, video_id_used=?
+               report_json=?, narrative_json=?, defense_json=?,
+               video_name=?, youtube_url=?, video_id_used=?
                WHERE id=?""",
             (stream_url, video_duration, now, report_json, narrative_json,
-             video_name, youtube_url, video.id, job_id),
+             defense_json, video_name, youtube_url, video.id, job_id),
         )
         db.commit()
 
