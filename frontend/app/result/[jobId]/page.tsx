@@ -61,11 +61,15 @@ export default function ResultPage() {
       const status = await res.json();
 
       if (status.status === "completed" || status.status === "failed") {
-        const finalRes = await fetch(`${API_URL}/api/result/${jobId}`);
-        if (finalRes.ok) {
-          setData(await finalRes.json());
-        } else {
-          setData({ job_id: jobId as string, status: status.status, error: status.error });
+        try {
+          const finalRes = await fetch(`${API_URL}/api/result/${jobId}`);
+          if (finalRes.ok) {
+            setData(await finalRes.json());
+          } else {
+            setData({ job_id: jobId as string, status: status.status, error: status.error || "Analysis failed" });
+          }
+        } catch {
+          setData({ job_id: jobId as string, status: status.status, error: status.error || "Unable to retrieve result" });
         }
       } else {
         setData({ job_id: jobId as string, status: status.status, progress: status.progress });
@@ -112,7 +116,7 @@ export default function ResultPage() {
 
   if (data.status === "completed" && data.stream_url) {
     return (
-      <main className="flex-1 flex flex-col px-6 py-12">
+      <main className="flex-1 flex flex-col px-6 py-6 sm:py-12">
         <div className="max-w-5xl mx-auto w-full">
           <VideoPlayer
             streamUrl={data.stream_url}
@@ -140,9 +144,14 @@ export default function ResultPage() {
   if (data.status === "failed") {
     return (
       <main className="flex-1 flex items-center justify-center px-6">
-        <div className="text-center">
-          <ProgressTracker progress={data.progress || "error"} />
-          <p className="text-text-muted mt-4">{data.error || "Analysis failed. Please try again."}</p>
+        <div className="text-center py-12">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-danger/10 flex items-center justify-center">
+            <svg className="w-8 h-8 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-light text-foreground mb-2">Analysis Failed</h2>
+          <p className="text-text-muted mt-1">{data.error || "Something went wrong. Please try again."}</p>
         </div>
       </main>
     );

@@ -34,7 +34,7 @@ def analyze(req: AnalyzeRequest):
     db.close()
 
     video_id = req.video_id or ""
-    thread = threading.Thread(target=analyze_ad, args=(req.youtube_url, job_id, video_id), daemon=True)
+    thread = threading.Thread(target=analyze_ad, args=(req.youtube_url, job_id, video_id, req.force_fresh), daemon=True)
     thread.start()
 
     return AnalyzeResponse(job_id=job_id)
@@ -68,7 +68,14 @@ def get_result(job_id: str):
 
     if row["status"] != "completed":
         db.close()
-        raise HTTPException(status_code=400, detail=f"Job not complete. Status: {row['status']}")
+        import json as _json
+        return ResultResponse(
+            job_id=row["id"],
+            status=row["status"],
+            error=row["error"],
+            youtube_url=row["youtube_url"] or "",
+            video_name=row["video_name"] or "",
+        )
 
     scenes_rows = db.execute(
         "SELECT * FROM scenes WHERE job_id=? ORDER BY start_time", (job_id,)

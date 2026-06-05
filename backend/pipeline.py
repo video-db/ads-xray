@@ -1,6 +1,7 @@
 import re
 import json
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -58,7 +59,7 @@ IMPORTANT RULES:
 - end_time = end of the LAST raw scene in the group
 - overlay must use the evidence→manipulation pattern, exposing HOW the visuals persuade
 - symbols_exploited should list what cultural symbols are being leveraged (cars=freedom, watches=status, etc.)
-- manipulation_score must be a number 1-10 reflecting overall manipulative intensity of the whole ad.
+- manipulation_score MUST be an integer 1-10 rating the overall manipulative intensity of the whole ad. This field is REQUIRED — never return null or omit it.
 - Return ONLY valid JSON, no markdown wrapping."""
 
 AUDIO_PROMPT = """Analyze this advertisement transcript for psychological manipulation in the spoken words.
@@ -66,7 +67,9 @@ AUDIO_PROMPT = """Analyze this advertisement transcript for psychological manipu
 Transcript:
 {transcript}
 
-Return JSON:
+If the transcript is too sparse, fragmented, or contains fewer than 2 complete sentences of meaningful spoken content, return {{"insufficient_audio": true}}.
+
+Otherwise return JSON with these exact fields:
 {{
   "strategy": "What persuasive language strategy does the narrator use?",
   "fears_exploited": ["fear1", "fear2"],
@@ -113,6 +116,7 @@ Synthesize a cohesive report covering the ENTIRE ad. Return JSON with these exac
   "ad_archetype": "e.g. Aspirational Luxury, Fear-Based, Problem-Solution, Identity Sale",
   "target_audience": "Brief description",
   "symbols_exploited": ["Symbol = ImpliedMeaning"],
+  "manipulation_score": 7,
   "key_moments": [
     {{
       "start_time": 0.0,
@@ -123,32 +127,50 @@ Synthesize a cohesive report covering the ENTIRE ad. Return JSON with these exac
   ]
 }}
 
-IMPORTANT: Select the BEST 4-7 key moments across all partial analyses. Each must span 4-12 seconds. Deduplicate overlapping moments. Return ONLY valid JSON, no markdown wrapping."""
+IMPORTANT: Select the BEST 4-7 key moments across all partial analyses. Each must span 4-12 seconds. Deduplicate overlapping moments. manipulation_score MUST be an integer 1-10 — never null. Return ONLY valid JSON, no markdown wrapping."""
+
+
+def _compute_fallback_score(report: dict) -> int:
+    triggers = len(report.get("emotional_triggers", []) or [])
+    biases = len(report.get("cognitive_biases", []) or [])
+    moments = len(report.get("key_moments", []) or [])
+    symbols = len(report.get("symbols_exploited", []) or [])
+    raw = (triggers * 0.3) + (biases * 0.3) + (moments * 0.5) + (symbols * 0.3) + 2
+    return max(1, min(10, round(raw)))
+
+def _ensure_score(report: dict) -> dict:
+    s = report.get("manipulation_score")
+    if s is None or (isinstance(s, (int, float)) and s <= 0):
+        report["manipulation_score"] = _compute_fallback_score(report)
+    return report
 
 
 def _build_intelligence_layer(coll, scenes_text: str) -> dict:
     if len(scenes_text) <= MAX_SCENES_CHARS:
-        return _single_pass_analysis(coll, scenes_text)
-
-    chunks = _split_scenes_into_chunks(scenes_text, MAX_SCENES_CHARS // 2)
-    partial_reports = []
-    for chunk in chunks:
-        report = _single_pass_analysis(coll, chunk)
-        partial_reports.append(report)
-
-    if len(partial_reports) == 1:
-        return partial_reports[0]
-
-    return _merge_partial_reports(coll, partial_reports)
+        result = _single_pass_analysis(coll, scenes_text)
+    else:
+        chunks = _split_scenes_into_chunks(scenes_text, MAX_SCENES_CHARS // 2)
+        partial_reports = [None] * len(chunks)
+        with ThreadPoolExecutor(max_workers=len(chunks)) as executor:
+            futures = {executor.submit(_single_pass_analysis, coll, chunk): i for i, chunk in enumerate(chunks)}
+            for future in as_completed(futures):
+                idx = futures[future]
+                partial_reports[idx] = future.result()
+        result = partial_reports[0] if len(partial_reports) == 1 else _merge_partial_reports(coll, partial_reports)
+    return _ensure_score(result)
 
 
 def _single_pass_analysis(coll, scenes_text: str) -> dict:
-    result = coll.generate_text(
-        prompt=INTELLIGENCE_PROMPT.format(scenes_text=scenes_text),
-        response_type="json",
-        model_name="pro",
-    )
-    return _parse_json(result)
+    try:
+        result = coll.generate_text(
+            prompt=INTELLIGENCE_PROMPT.format(scenes_text=scenes_text),
+            response_type="json",
+            model_name="pro",
+        )
+        return _parse_json(result)
+    except Exception as e:
+        print(f"[LLM] single_pass failed: {e}")
+        return {}
 
 
 def _split_scenes_into_chunks(scenes_text: str, max_chars: int) -> list:
@@ -167,43 +189,55 @@ def _split_scenes_into_chunks(scenes_text: str, max_chars: int) -> list:
 
 
 def _merge_partial_reports(coll, reports: list) -> dict:
-    partial_text = ""
-    for i, r in enumerate(reports):
-        partial_text += f"### Analysis {i + 1}\n{json.dumps(r, indent=2)}\n\n"
+    try:
+        partial_text = ""
+        for i, r in enumerate(reports):
+            partial_text += f"### Analysis {i + 1}\n{json.dumps(r, indent=2)}\n\n"
 
-    result = coll.generate_text(
-        prompt=MERGE_PROMPT.format(partial_reports=partial_text),
-        response_type="json",
-        model_name="pro",
-    )
-    return _parse_json(result)
+        result = coll.generate_text(
+            prompt=MERGE_PROMPT.format(partial_reports=partial_text),
+            response_type="json",
+            model_name="pro",
+        )
+        return _parse_json(result)
+    except Exception as e:
+        print(f"[LLM] merge_reports failed: {e}")
+        return reports[0] if reports else {}
 
 
 def _build_audio_analysis(coll, transcript: str) -> dict:
-    result = coll.generate_text(
-        prompt=AUDIO_PROMPT.format(transcript=transcript),
-        response_type="json",
-        model_name="pro",
-    )
-    return _parse_json(result)
+    try:
+        result = coll.generate_text(
+            prompt=AUDIO_PROMPT.format(transcript=transcript),
+            response_type="json",
+            model_name="pro",
+        )
+        return _parse_json(result)
+    except Exception as e:
+        print(f"[LLM] audio_analysis failed: {e}")
+        return {"insufficient_audio": True}
 
 
 def _build_defense_strategies(coll, report: dict) -> dict:
-    summary = json.dumps({
-        "ad_archetype": report.get("ad_archetype", ""),
-        "primary_technique": report.get("primary_technique", ""),
-        "emotional_triggers": report.get("emotional_triggers", []) or [],
-        "cognitive_biases": report.get("cognitive_biases", []) or [],
-        "symbols_exploited": report.get("symbols_exploited", []) or [],
-        "target_audience": report.get("target_audience", ""),
-        "breakdown": report.get("breakdown", "")[:800],
-    })
-    result = coll.generate_text(
-        prompt=DEFENSE_PROMPT.format(report_summary=summary),
-        response_type="json",
-        model_name="pro",
-    )
-    return _parse_json(result)
+    try:
+        summary = json.dumps({
+            "ad_archetype": report.get("ad_archetype", ""),
+            "primary_technique": report.get("primary_technique", ""),
+            "emotional_triggers": report.get("emotional_triggers", []) or [],
+            "cognitive_biases": report.get("cognitive_biases", []) or [],
+            "symbols_exploited": report.get("symbols_exploited", []) or [],
+            "target_audience": report.get("target_audience", ""),
+            "breakdown": report.get("breakdown", "")[:800],
+        })
+        result = coll.generate_text(
+            prompt=DEFENSE_PROMPT.format(report_summary=summary),
+            response_type="json",
+            model_name="pro",
+        )
+        return _parse_json(result)
+    except Exception as e:
+        print(f"[LLM] defense_strategies failed: {e}")
+        return {}
 
 
 def _parse_json(result) -> dict:
@@ -220,7 +254,7 @@ def _parse_json(result) -> dict:
     return {}
 
 
-def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
+def analyze_ad(youtube_url: str, job_id: str, video_id: str = "", force_fresh: bool = False):
     db = get_db()
 
     try:
@@ -243,10 +277,13 @@ def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
 
         _update(db, job_id, "processing", "indexing_shots")
         scene_index_id = None
+        extraction_config = {"threshold": 25, "frame_count": 1}
+        if force_fresh:
+            extraction_config["cache_key"] = job_id
         try:
             scene_index_id = video.index_scenes(
                 extraction_type=SceneExtractionType.shot_based,
-                extraction_config={"threshold": 25, "frame_count": 1},
+                extraction_config=extraction_config,
                 prompt=SCENE_PROMPT,
             )
         except Exception as e:
@@ -268,7 +305,6 @@ def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
             desc = s.get("description", "")
             scenes_text += f"[{start:.1f}s-{end:.1f}s] {desc}\n\n"
 
-        has_audio = False
         transcript = ""
         try:
             video.index_spoken_words()
@@ -276,7 +312,6 @@ def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
             pass
         try:
             transcript = video.get_transcript_text() or ""
-            has_audio = bool(transcript and len(transcript.strip()) > 10)
         except Exception:
             pass
 
@@ -284,9 +319,11 @@ def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
         report = _build_intelligence_layer(coll, scenes_text)
 
         narrative = {}
-        if has_audio:
+        if transcript.strip():
             _update(db, job_id, "processing", "analyzing_audio")
             narrative = _build_audio_analysis(coll, transcript)
+            if narrative.get("insufficient_audio"):
+                narrative = {}
 
         _update(db, job_id, "processing", "generating_defense")
         defense = _build_defense_strategies(coll, report)
@@ -347,7 +384,18 @@ def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
         db.commit()
 
     except Exception as e:
-        _fail(db, job_id, str(e))
+        import traceback
+        msg = str(e)
+        if "upload" in msg.lower() or "timeout" in msg.lower():
+            msg = "Upload failed — the URL may be invalid or the video is unavailable."
+        elif "generate" in msg.lower() or "llm" in msg.lower() or "api" in msg.lower():
+            msg = "AI analysis failed — the model service returned an error. Please try again."
+        elif "compile" in msg.lower() or "render" in msg.lower() or "ffmpeg" in msg.lower():
+            msg = "Video rendering failed — unable to produce the annotated output."
+        elif len(msg) > 200:
+            msg = "An unexpected error occurred during processing."
+        _fail(db, job_id, msg)
+        print(f"[FAIL] {job_id}: {traceback.format_exc()}")
     finally:
         db.close()
 

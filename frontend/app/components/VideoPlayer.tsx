@@ -113,7 +113,7 @@ function buildMarkdown(report: ReportProps): string {
   if (report.scenes?.length) {
     lines.push(`## ⏱️ Key Moments`, ``);
     report.scenes.forEach((s, i) => {
-      lines.push(`### ${formatTime(s.start_time)} — ${s.overlay_text}`, ``);
+      lines.push(`### ${formatTime(s.start_time)}–${formatTime(s.end_time)} — ${s.overlay_text}`, ``);
       if (s.description) lines.push(`${s.description}`, ``);
     });
   }
@@ -143,7 +143,7 @@ export default function VideoPlayer(report: ReportProps) {
 
   return (
     <>
-      {report.manipulationScore && report.manipulationScore > 0 && (
+      {report.manipulationScore != null && report.manipulationScore > 0 && (
         <div className="flex items-center justify-center mb-6">
           <div className={`flex items-center gap-3 px-6 py-3 rounded-full border ${
             report.manipulationScore >= 8 ? "bg-danger/10 border-danger/30" :
@@ -162,7 +162,7 @@ export default function VideoPlayer(report: ReportProps) {
           </div>
         </div>
       )}
-    <div className="w-full max-w-5xl mx-auto px-4 sm:px-0 sm:space-y-10 space-y-6">
+    <div className="w-full max-w-5xl mx-auto space-y-10">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-light text-foreground">
@@ -173,7 +173,7 @@ export default function VideoPlayer(report: ReportProps) {
               href={report.youtubeUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-primary hover:underline font-mono"
+              className="text-xs text-primary hover:underline font-mono truncate max-w-[200px] sm:max-w-full"
             >
               {report.youtubeUrl}
             </a>
@@ -225,75 +225,59 @@ export default function VideoPlayer(report: ReportProps) {
         </div>
       </div>
 
-      {report.streamUrl && (
-        <div className="aspect-video rounded-card max-sm:rounded-none overflow-hidden bg-surface border border-border shadow-2xl">
-          <video
-            key={report.streamUrl}
-            src={report.streamUrl}
-            controls
-            className="w-full h-full object-contain"
-          />
+      {report.primaryTechnique && (
+        <div className="px-5 py-4 rounded-card bg-surface border border-primary/20 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="text-xs font-mono text-primary uppercase tracking-wider whitespace-nowrap">Primary Technique</span>
+          <span className="text-sm sm:text-base font-medium text-foreground">{report.primaryTechnique}</span>
+          {report.adArchetype && (
+            <>
+              <span className="w-px h-4 bg-border hidden sm:block" />
+              <span className="text-xs text-text-subtle">{report.adArchetype}</span>
+            </>
+          )}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="max-w-4xl mx-auto w-full">
+        {report.streamUrl && (
+          <div className="aspect-video rounded-card max-sm:rounded-none overflow-hidden bg-surface border border-border shadow-lg sm:shadow-2xl">
+            <video
+              key={report.streamUrl}
+              src={report.streamUrl}
+              controls
+              className="w-full h-full object-contain"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2">
           {report.breakdown && (
-            <section>
+            <section className="p-6 rounded-card bg-surface border border-border">
               <h3 className="text-sm font-mono text-primary uppercase tracking-wider mb-4">
                 Psychological Breakdown
               </h3>
-              <div className="prose prose-invert max-w-none text-text-muted text-sm">
+              <div className="
+                text-sm text-text-muted
+                [&_p]:mb-4 [&_p]:text-left sm:[&_p]:text-justify [&_p]:leading-relaxed
+                [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ul]:space-y-2
+                [&_li]:text-left sm:[&_li]:text-justify [&_li]:leading-relaxed
+                [&_strong]:text-white [&_strong]:font-medium
+                [&_em]:text-text-muted
+                max-w-none
+              ">
                 <ReactMarkdown>
                   {report.breakdown.replace(/^•\s/gm, "- ")}
                 </ReactMarkdown>
               </div>
             </section>
           )}
-
-          {report.narrative && (report.narrative.strategy || (report.narrative.key_phrases && report.narrative.key_phrases.length > 0)) && (
-            <section className="p-6 rounded-card bg-surface border border-border">
-              <h3 className="text-sm font-mono text-primary uppercase tracking-wider mb-4">
-                Narrative Manipulation
-              </h3>
-              {report.narrative.strategy && (
-                <p className="text-sm text-text-muted mb-3">{report.narrative.strategy}</p>
-              )}
-              {report.narrative.story_arc && (
-                <div className="flex items-center gap-2 text-xs font-mono text-primary bg-primary/5 rounded-subtle px-3 py-2 mb-4">
-                  {report.narrative.story_arc}
-                </div>
-              )}
-              {report.narrative.key_phrases && report.narrative.key_phrases.length > 0 && (
-                <div className="space-y-2 mt-3">
-                  {report.narrative.key_phrases.map((kp, i) => (
-                    <div key={i} className="text-sm">
-                      <span className="text-foreground font-medium">&ldquo;{kp.phrase}&rdquo;</span>
-                      <span className="text-text-subtle"> — {kp.manipulation}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {report.narrative.voice_tone && (
-                <p className="text-xs text-text-subtle mt-3 italic">{report.narrative.voice_tone}</p>
-              )}
-            </section>
-          )}
         </div>
 
-        <div className="space-y-6">
-          {report.primaryTechnique && (
-            <div className="p-6 rounded-card bg-surface border border-primary/20">
-              <span className="text-xs font-mono text-primary uppercase tracking-wider">Primary Technique</span>
-              <p className="text-lg font-medium text-foreground mt-1">{report.primaryTechnique}</p>
-              {report.adArchetype && (
-                <p className="text-xs text-text-subtle mt-1">{report.adArchetype}</p>
-              )}
-            </div>
-          )}
-
+        <div className="space-y-4">
           {report.emotionalTriggers && report.emotionalTriggers.length > 0 && (
-            <div className="p-6 rounded-card bg-surface border border-border">
+            <div className="p-5 rounded-card bg-surface border border-border">
               <span className="text-xs font-mono text-primary uppercase tracking-wider">Emotional Triggers</span>
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {report.emotionalTriggers.map((t) => (
@@ -306,7 +290,7 @@ export default function VideoPlayer(report: ReportProps) {
           )}
 
           {report.cognitiveBiases && report.cognitiveBiases.length > 0 && (
-            <div className="p-6 rounded-card bg-surface border border-border">
+            <div className="p-5 rounded-card bg-surface border border-border">
               <span className="text-xs font-mono text-primary uppercase tracking-wider">Cognitive Biases</span>
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {report.cognitiveBiases.map((b) => (
@@ -319,11 +303,11 @@ export default function VideoPlayer(report: ReportProps) {
           )}
 
           {report.symbolsExploited && report.symbolsExploited.length > 0 && (
-            <div className="p-6 rounded-card bg-surface border border-border">
+            <div className="p-5 rounded-card bg-surface border border-border">
               <span className="text-xs font-mono text-primary uppercase tracking-wider">Symbols Exploited</span>
               <div className="flex flex-wrap gap-1.5 mt-3">
                 {report.symbolsExploited.map((s) => (
-                  <span key={s} className="text-xs px-2.5 py-1 rounded-full bg-subtle text-text-muted font-mono">
+                  <span key={s} className="text-xs px-2.5 py-1 rounded-full bg-success/10 text-success border border-success/20 font-mono">
                     {s}
                   </span>
                 ))}
@@ -332,6 +316,35 @@ export default function VideoPlayer(report: ReportProps) {
           )}
         </div>
       </div>
+
+      {report.narrative && (report.narrative.strategy || (report.narrative.key_phrases && report.narrative.key_phrases.length > 0)) && (
+        <section className="p-6 rounded-card bg-surface border border-border">
+          <h3 className="text-sm font-mono text-primary uppercase tracking-wider mb-4">
+            Narrative Manipulation
+          </h3>
+          {report.narrative.strategy && (
+            <p className="text-sm text-text-muted mb-3 text-left sm:text-justify leading-relaxed">{report.narrative.strategy}</p>
+          )}
+          {report.narrative.story_arc && (
+                <div className="flex items-center gap-2 text-xs font-mono text-primary bg-primary/5 rounded-subtle px-3 py-2 mb-4 max-w-full">
+                  <span className="truncate">{report.narrative.story_arc}</span>
+            </div>
+          )}
+          {report.narrative.key_phrases && report.narrative.key_phrases.length > 0 && (
+            <div className="space-y-2 mt-3">
+              {report.narrative.key_phrases.map((kp, i) => (
+                <div key={i} className="text-sm">
+                  <span className="text-foreground font-medium">&ldquo;{kp.phrase}&rdquo;</span>
+                  <span className="text-text-subtle"> — {kp.manipulation}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {report.narrative.voice_tone && (
+            <p className="text-xs text-text-subtle mt-3 italic">{report.narrative.voice_tone}</p>
+          )}
+        </section>
+      )}
 
       {report.scenes && report.scenes.length > 0 && (
         <section>
@@ -344,13 +357,15 @@ export default function VideoPlayer(report: ReportProps) {
                 key={i}
                 className="group flex items-start gap-4 p-4 rounded-card bg-surface border border-border hover:border-primary/30 transition-all duration-200"
               >
-                <div className="flex-shrink-0 w-12 sm:w-16 text-center">
-                  <div className="text-xs font-mono text-primary">{formatTime(scene.start_time)}</div>
+                <div className="flex-shrink-0 w-14 sm:w-16 text-center pt-0.5">
+                  <div className="text-xs font-mono text-primary leading-tight">
+                    {formatTime(scene.start_time)}<br />—<br />{formatTime(scene.end_time)}
+                  </div>
                 </div>
                 <div className="flex-1 min-w-0 space-y-1">
-                  <p className="text-sm text-foreground font-medium">{scene.overlay_text}</p>
+                  <p className="text-sm text-foreground font-medium leading-relaxed">{scene.overlay_text}</p>
                   {scene.description && (
-                    <p className="text-xs text-text-muted leading-relaxed">{scene.description}</p>
+                    <p className="text-xs text-text-muted leading-relaxed text-left sm:text-justify">{scene.description}</p>
                   )}
                 </div>
               </div>
@@ -376,16 +391,16 @@ export default function VideoPlayer(report: ReportProps) {
                     Countering: {ds.technique_targeted}
                   </span>
                 </div>
-                <p className="text-sm text-text-muted leading-relaxed mb-3">{ds.strategy}</p>
+                <p className="text-sm text-text-muted leading-relaxed mb-3 text-left sm:text-justify">{ds.strategy}</p>
                 <div className="flex items-start gap-2 text-sm">
                   <span className="text-warning flex-shrink-0 mt-0.5">?</span>
-                  <span className="text-warning/80 italic">&ldquo;{ds.question_to_ask}&rdquo;</span>
+                  <span className="text-warning/80 italic leading-relaxed">&ldquo;{ds.question_to_ask}&rdquo;</span>
                 </div>
               </div>
             ))}
             {report.empowermentMessage && (
               <div className="mt-6 p-5 rounded-card bg-primary/5 border border-primary/20">
-                <p className="text-sm text-text-muted leading-relaxed italic">
+                <p className="text-sm text-text-muted leading-relaxed italic text-left sm:text-justify">
                   {report.empowermentMessage}
                 </p>
               </div>

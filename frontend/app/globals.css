@@ -53,3 +53,14 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(32px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.reveal {
+  animation: slide-up 0.8s ease-out both;
+  animation-timeline: view();
+  animation-range: entry 5% entry 100%;
+}

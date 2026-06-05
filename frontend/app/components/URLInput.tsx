@@ -53,15 +53,15 @@ export default function URLInput({ onSubmit, disabled }: URLInputProps) {
         </button>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <input
           type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder={
             testMode
-              ? "Paste VideoDB video ID... e.g. m-z-019e9823-..."
-              : "Paste a YouTube ad URL... e.g. https://www.youtube.com/watch?v=..."
+              ? "Paste VideoDB video ID..."
+              : "Paste a YouTube Ad URL..."
           }
           disabled={disabled}
           required

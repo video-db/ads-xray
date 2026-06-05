@@ -19,9 +19,13 @@ Every advertisement is a carefully engineered psychological artifact. Behind a 2
 **Ad-Xray uses AI to deconstruct advertisements and expose the persuasive techniques embedded in every frame.** Instead of consuming an ad passively, viewers get a full psychological report revealing:
 
 - A synthesized breakdown of the ad's manipulation strategy
+- Manipulation intensity score (1-10) with color-coded severity
 - Emotional triggers and cognitive biases being exploited
+- Cultural symbols weaponized for persuasion
 - Key moments with on-screen overlay commentary
-- Narrative analysis of spoken words and story arc
+- Narrative analysis of spoken words (or skipped when audio is insufficient)
+- Defense strategies — actionable counter-tactics to resist each technique
+- An empowerment message to reclaim cognitive autonomy
 
 The result is an annotated video with overlaid commentary — plus a shareable report that makes the invisible visible.
 
@@ -72,30 +76,35 @@ Open [http://localhost:3000](http://localhost:3000), paste a YouTube ad URL, and
 ## How It Works
 
 ```
-YouTube URL → Upload → Shot Index → Intelligence Layer → Report + Annotated Video
-                                  ↗ (audio transcript analysis)
+YouTube URL → Upload → Shot Index → Intelligence Layer → Audio Analysis → Defense Strategies → Annotated Video + Report
 ```
 
 ### Dual-Stream Analysis
 
-Ad-Xray processes ads through two independent streams:
+Ad-Xray processes ads through independent streams running in parallel where possible:
 
-**Visual Stream** — Shot-based scene indexing captures every distinct visual moment. Raw scene descriptions are fed into the intelligence layer for synthesis.
+**Visual Stream** — Shot-based scene indexing captures every distinct visual moment. Raw scene descriptions are fed into the intelligence layer. For long ads (>80K chars of scene data), analysis runs in parallel across multiple chunks and the results are merged.
 
-**Audio Stream** — Spoken words are transcribed and analyzed separately for narrative manipulation — persuasive language, story arcs, key phrases, and vocal tone.
+**Audio Stream** — Spoken words are transcribed and analyzed separately. When the transcript is too sparse (silent ads, minimal dialogue), the LLM returns `insufficient_audio` and the narrative section is gracefully skipped — no hallucinated analysis from noise.
 
 ### Intelligence Layer
 
-An LLM synthesizes all raw data into a structured psychological report:
+An LLM (VideoDB PRO model) synthesizes all raw data into a structured psychological report using an evidence→manipulation overlay pattern — every key moment explains *what* is visually shown and *how* it manipulates:
 
 | Field | Description |
 |-------|-------------|
-| **Breakdown** | 2-paragraph critical analysis of the ad's overall strategy |
+| **Breakdown** | 2-paragraph critical analysis using - bullet points |
+| **Manipulation Score** | 1-10 rating of overall manipulative intensity (never null) |
 | **Primary Technique** | The single most powerful psychological move |
 | **Emotional Triggers** | Tagged list — aspiration, fear, belonging, etc. |
 | **Cognitive Biases** | Tagged list — halo effect, scarcity, authority, etc. |
-| **Key Moments** | 3-10 timestamped insights with overlay text for the video |
+| **Symbols** | Cultural symbols leveraged — `Sharp Suit=Power/Status` |
+| **Key Moments** | 3-7 timestamped insights with overlay text (≥5s filter) |
 | **Ad Archetype** | Aspirational Luxury, Fear-Based, Identity Sale, etc. |
+
+### Defense Strategies
+
+A dedicated LLM call takes the report summary and generates 3-5 actionable defense strategies — each targeting a specific manipulation technique with a practical counter-tactic and a defusing question to ask yourself. Every report ends with an empowerment message about media literacy and cognitive autonomy.
 
 ### Video Assembly
 
@@ -103,7 +112,7 @@ Key moments are rendered as text overlays on the original video via VideoDB's pr
 
 ### Report
 
-Every analysis includes a full report: breakdown, technique classification, trigger/biases tags, narrative analysis (when audio is present), and key moments. One-click copy as Markdown for sharing.
+Every analysis includes: score badge, breakdown, technique + archetype, emotion/biases tags, symbols exploited, key moments timeline with start–end timestamps, narrative analysis (only when audio is meaningful), defense strategies, and empowerment message. One-click copy as Markdown or stream link for sharing.
 
 ---
 
@@ -140,7 +149,9 @@ ads-xray/
 - **Background:** Near-black (`#0A0A0A`) — X-ray film base
 - **Primary accent:** Sky cyan (`#0EA5E9`) — clinical, scanning
 - **Warning accent:** Amber (`#F59E0B`) — manipulation detected
-- **Typography:** Geist (sans), JetBrains Mono (chrome/timestamps)
+- **Danger accent:** Red (`#EF4444`) — high manipulation score
+- **Success accent:** Green (`#22C55E`) — defense strategies
+- **Typography:** Geist (sans), Geist Mono (timestamps/code)
 - **Cards:** Raised dark surfaces with hairline borders
 
 ---

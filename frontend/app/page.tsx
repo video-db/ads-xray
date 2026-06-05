@@ -16,8 +16,11 @@ export default function Home() {
     setError("");
 
     try {
-      const body: Record<string, string> = { youtube_url: url };
-      if (videoId) body.video_id = videoId;
+      const body: Record<string, string | boolean> = { youtube_url: url };
+      if (videoId) {
+        body.video_id = videoId;
+        body.force_fresh = true;
+      }
 
       const res = await fetch(`${API_URL}/api/analyze`, {
         method: "POST",
@@ -40,8 +43,8 @@ export default function Home() {
 
   return (
     <main className="flex-1 flex flex-col">
-      <section className="flex-1 flex flex-col items-center justify-center px-6 py-24 min-h-[80vh]">
-        <div className="text-center max-w-3xl mb-12">
+        <section className="flex-1 flex flex-col items-center justify-center px-6 py-16 sm:py-24 min-h-screen">
+          <div className="text-center max-w-3xl mb-8 sm:mb-12">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface border border-border mb-8">
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="text-xs font-mono text-text-muted uppercase tracking-widest">
@@ -49,13 +52,13 @@ export default function Home() {
             </span>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight text-foreground leading-[1.1]">
+          <h1 className="text-4xl sm:text-5xl lg:text-7xl font-light tracking-tight text-foreground leading-[1.1]">
             See Through the
             <br />
             <span className="text-primary">Persuasion Machine</span>
           </h1>
 
-          <p className="mt-6 text-lg text-text-muted max-w-xl mx-auto leading-relaxed">
+          <p className="mt-6 text-base sm:text-lg text-text-muted max-w-xl mx-auto leading-relaxed">
             Every ad is engineered by teams of psychologists to manipulate what you
             think, feel, and buy. Ad-Xray uses AI to expose the hidden techniques
             behind every frame — in real time.
@@ -69,7 +72,7 @@ export default function Home() {
         )}
       </section>
 
-      <section className="border-t border-border py-24 px-6">
+      <section className="border-t border-border py-24 px-6 reveal">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <span className="text-xs font-mono text-primary uppercase tracking-widest">
@@ -84,7 +87,7 @@ export default function Home() {
             {[
               {
                 step: "01",
-                title: "Paste any YouTube ad",
+                title: "Paste any YouTube Ad",
                 desc: "Drop in a link to a car commercial, perfume ad, insurance spot — anything designed to sell.",
                 icon: (
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,11 +116,12 @@ export default function Home() {
                   </svg>
                 ),
               },
-            ].map((item) => (
+            ].map((item, i) => (
               <div
                 key={item.step}
-                className="group p-8 rounded-card bg-surface border border-border
-                  hover:border-primary/30 transition-all duration-200"
+                className="group p-6 sm:p-8 rounded-card bg-surface border border-border
+                  hover:border-primary/30 transition-all duration-200 reveal"
+                style={{ animationRange: `entry ${i * 15}% entry 100%` }}
               >
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-5 group-hover:bg-primary/20 transition-colors">
                   {item.icon}
@@ -131,7 +135,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="border-t border-border py-24 px-6 bg-surface">
+      <section className="border-t border-border py-24 px-6 bg-surface reveal">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-light text-foreground mb-6">
             Why This Exists

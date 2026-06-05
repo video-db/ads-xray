@@ -46,3 +46,5 @@ Ad-XRay.md
 
 # Logs
 *.log
+*.db-shm
+*.db-wal

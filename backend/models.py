@@ -5,6 +5,7 @@ from typing import Optional
 class AnalyzeRequest(BaseModel):
     youtube_url: str
     video_id: Optional[str] = None
+    force_fresh: bool = False
 
 
 class AnalyzeResponse(BaseModel):
