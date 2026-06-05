@@ -2,6 +2,7 @@ import uuid
 import hashlib
 import logging
 import threading
+import time
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 import os
@@ -52,21 +53,29 @@ _active_jobs = 0
 _job_lock = threading.Lock()
 
 _RATE_WINDOW = {}
+_RATE_WINDOW = {}
+_RATE_LOCK = threading.Lock()
+
 _RATE_LIMIT_POST = 5
-_RATE_LIMIT_GET = 100
 
 
 def _check_rate(request: Request, api_key: str, limit: int) -> None:
-    from time import time
-    now = int(time())
-    bucket = _RATE_WINDOW.get(api_key, {})
-    minute = now // 60
-    if bucket.get("minute") != minute:
-        bucket = {"minute": minute, "count": 0}
-    bucket["count"] += 1
-    _RATE_WINDOW[api_key] = bucket
-    if bucket["count"] > limit:
-        raise HTTPException(status_code=429, detail=f"Rate limit exceeded ({limit} requests per minute). Please wait.")
+    now = time.time()
+    current_minute = int(now) // 60
+
+    with _RATE_LOCK:
+        entry = _RATE_WINDOW.get(api_key)
+        if entry is None or entry[0] != current_minute:
+            entry = [current_minute, 0]
+        entry[1] += 1
+        _RATE_WINDOW[api_key] = entry
+
+        stale = [k for k, v in _RATE_WINDOW.items() if v[0] != current_minute]
+        for k in stale:
+            del _RATE_WINDOW[k]
+
+        if entry[1] > limit:
+            raise HTTPException(status_code=429, detail=f"Rate limit exceeded ({limit} requests per minute). Please wait.")
 
 
 def _hash_key(api_key: str) -> str:
@@ -125,7 +134,6 @@ def analyze(request: Request, req: AnalyzeRequest, api_key: str = Header(..., al
 
 @app.get("/api/status/{job_id}", response_model=StatusResponse)
 def get_status(request: Request, job_id: str, api_key: str = Header(..., alias="X-VideoDB-Key")):
-    _check_rate(request, _hash_key(api_key), _RATE_LIMIT_GET)
 
     db = get_db()
     row = db.execute("SELECT * FROM jobs WHERE id=? AND api_key_hash=?", (job_id, _hash_key(api_key))).fetchone()
@@ -144,7 +152,6 @@ def get_status(request: Request, job_id: str, api_key: str = Header(..., alias="
 
 @app.get("/api/result/{job_id}", response_model=ResultResponse)
 def get_result(request: Request, job_id: str, api_key: str = Header(..., alias="X-VideoDB-Key")):
-    _check_rate(request, _hash_key(api_key), _RATE_LIMIT_GET)
 
     db = get_db()
     row = db.execute("SELECT * FROM jobs WHERE id=? AND api_key_hash=?", (job_id, _hash_key(api_key))).fetchone()
@@ -217,7 +224,6 @@ def get_result(request: Request, job_id: str, api_key: str = Header(..., alias="
 
 @app.get("/api/history")
 def get_history(request: Request, api_key: str = Header(..., alias="X-VideoDB-Key"), page: int = 1, per_page: int = 10):
-    _check_rate(request, _hash_key(api_key), _RATE_LIMIT_GET)
     per_page = max(1, min(per_page, 50))
 
     key_hash = _hash_key(api_key)

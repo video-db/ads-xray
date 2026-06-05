@@ -63,6 +63,7 @@ export default function ResultPage() {
         headers: { "X-VideoDB-Key": apiKey },
       });
       if (!res.ok) {
+        if (res.status === 429) return; // rate limited — retry next interval
         setError("Job not found");
         return;
       }
