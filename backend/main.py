@@ -85,12 +85,24 @@ def get_result(job_id: str):
         for s in scenes_rows
     ]
 
+    import json as _json
+    report = _json.loads(row["report_json"] or "{}")
+    narrative = _json.loads(row["narrative_json"] or "{}")
     return ResultResponse(
         job_id=row["id"],
         status=row["status"],
         stream_url=row["stream_url"],
         duration=row["duration"],
+        video_name=row["video_name"] or "",
+        youtube_url=row["youtube_url"] or "",
         scenes=scenes,
+        breakdown=report.get("breakdown", ""),
+        primary_technique=report.get("primary_technique", ""),
+        emotional_triggers=report.get("emotional_triggers", []) or [],
+        cognitive_biases=report.get("cognitive_biases", []) or [],
+        ad_archetype=report.get("ad_archetype", ""),
+        target_audience=report.get("target_audience", ""),
+        narrative=narrative if narrative else None,
         error=row["error"],
     )
 

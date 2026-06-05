@@ -35,6 +35,10 @@ backend/venv/
 backend/test_*.py
 backend/test_videos/
 backend/videodb_test_*
+backend/*_results.json
+backend/*_quality.md
+backend/*_tests.md
+backend/compare_*.py
 
 # PDF and generated markdown
 *.pdf

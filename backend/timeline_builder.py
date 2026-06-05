@@ -15,7 +15,7 @@ from videodb.editor import (
 )
 
 
-def _wrap_text(text: str, max_chars: int = 72) -> str:
+def _wrap_text(text: str, max_chars: int = 88) -> str:
     if len(text) <= max_chars:
         return text
     words = text.split()

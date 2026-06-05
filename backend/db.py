@@ -1,5 +1,4 @@
 import sqlite3
-import json
 import os
 from datetime import datetime, timezone
 
@@ -24,6 +23,10 @@ def init_db():
             progress TEXT NOT NULL DEFAULT 'queued',
             stream_url TEXT,
             duration REAL,
+            report_json TEXT,
+            narrative_json TEXT DEFAULT '{}',
+            video_name TEXT DEFAULT '',
+            video_id_used TEXT DEFAULT '',
             error TEXT,
             created_at TEXT NOT NULL,
             completed_at TEXT

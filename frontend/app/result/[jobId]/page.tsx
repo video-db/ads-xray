@@ -14,13 +14,31 @@ interface SceneResult {
   description: string;
 }
 
+interface Narrative {
+  strategy?: string;
+  fears_exploited?: string[];
+  desires_exploited?: string[];
+  story_arc?: string;
+  key_phrases?: { phrase: string; manipulation: string }[];
+  voice_tone?: string;
+}
+
 interface JobResult {
   job_id: string;
   status: string;
   progress?: string;
   stream_url?: string;
   duration?: number;
+  video_name?: string;
+  youtube_url?: string;
   scenes?: SceneResult[];
+  breakdown?: string;
+  primary_technique?: string;
+  emotional_triggers?: string[];
+  cognitive_biases?: string[];
+  ad_archetype?: string;
+  target_audience?: string;
+  narrative?: Narrative | null;
   error?: string;
 }
 
@@ -98,7 +116,20 @@ export default function ResultPage() {
         />
 
         {data.status === "completed" && data.stream_url && (
-          <VideoPlayer streamUrl={data.stream_url} scenes={data.scenes} />
+          <VideoPlayer
+            streamUrl={data.stream_url}
+            scenes={data.scenes}
+            breakdown={data.breakdown}
+            primaryTechnique={data.primary_technique}
+            emotionalTriggers={data.emotional_triggers}
+            cognitiveBiases={data.cognitive_biases}
+            adArchetype={data.ad_archetype}
+            targetAudience={data.target_audience}
+            narrative={data.narrative}
+            videoName={data.video_name}
+            youtubeUrl={data.youtube_url}
+            duration={data.duration}
+          />
         )}
       </div>
     </main>
