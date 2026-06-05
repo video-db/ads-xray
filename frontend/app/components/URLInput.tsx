@@ -49,7 +49,7 @@ export default function URLInput({ onSubmit, disabled }: URLInputProps) {
               : "border-border text-text-subtle hover:border-warning/30"
           }`}
         >
-          Video ID (Test)
+          Video ID
         </button>
       </div>
 
@@ -80,13 +80,13 @@ export default function URLInput({ onSubmit, disabled }: URLInputProps) {
             transition-all duration-200 cursor-pointer select-none whitespace-nowrap
             ${testMode ? "bg-warning" : "bg-primary hover:bg-primary-hover"}`}
         >
-          {testMode ? "Test Run" : "X-Ray This Ad"}
+          {testMode ? "Run" : "X-Ray This Ad"}
         </button>
       </div>
 
       {testMode && (
         <p className="text-xs text-text-subtle mt-3 text-center">
-          Test mode — skips YouTube upload and uses an existing VideoDB video directly.
+          Uses an existing VideoDB video directly instead of uploading from YouTube.
         </p>
       )}
     </form>
