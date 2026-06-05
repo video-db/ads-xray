@@ -48,3 +48,4 @@ Ad-XRay.md
 *.log
 *.db-shm
 *.db-wal
+tests/*

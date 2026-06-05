@@ -1,5 +1,7 @@
 import re
 import json
+import hashlib
+import logging
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
@@ -11,6 +13,8 @@ from videodb import SceneExtractionType, MediaType
 
 from db import get_db
 from timeline_builder import build_timeline
+
+logger = logging.getLogger("adxray")
 
 SCENE_PROMPT = (
     "As a forensic advertising psychologist, describe how this scene contributes to "
@@ -102,6 +106,26 @@ Generate 3-5 strategies. Be practical, actionable, and psychologically sound. Re
 
 MAX_SCENES_CHARS = 80000
 
+
+def validate_api_key(api_key: str):
+    try:
+        conn = videodb.connect(api_key=api_key)
+        conn.get_collection()
+        return True, None
+    except Exception as e:
+        msg = str(e)
+        if "401" in msg or "unauthorized" in msg.lower() or "invalid" in msg.lower():
+            return False, "Invalid API key — please check and try again."
+        if "timeout" in msg.lower() or "connection" in msg.lower():
+            return False, "Could not reach VideoDB. Check your internet connection."
+        logger.warning(f"Key validation failed: {msg[:120]}")
+        return False, "Could not validate API key. Please try again."
+
+
+def _hash_key(api_key: str) -> str:
+    return hashlib.sha256(api_key.encode()).hexdigest()
+
+
 MERGE_PROMPT = """You are a forensic advertising psychologist. Combine these partial analyses of an advertisement into ONE unified psychological report.
 
 Partial analyses:
@@ -169,7 +193,7 @@ def _single_pass_analysis(coll, scenes_text: str) -> dict:
         )
         return _parse_json(result)
     except Exception as e:
-        print(f"[LLM] single_pass failed: {e}")
+        logger.warning(f"single_pass failed: {e}")
         return {}
 
 
@@ -201,7 +225,7 @@ def _merge_partial_reports(coll, reports: list) -> dict:
         )
         return _parse_json(result)
     except Exception as e:
-        print(f"[LLM] merge_reports failed: {e}")
+        logger.warning(f"merge_reports failed: {e}")
         return reports[0] if reports else {}
 
 
@@ -214,7 +238,7 @@ def _build_audio_analysis(coll, transcript: str) -> dict:
         )
         return _parse_json(result)
     except Exception as e:
-        print(f"[LLM] audio_analysis failed: {e}")
+        logger.warning(f"audio_analysis failed: {e}")
         return {"insufficient_audio": True}
 
 
@@ -236,7 +260,7 @@ def _build_defense_strategies(coll, report: dict) -> dict:
         )
         return _parse_json(result)
     except Exception as e:
-        print(f"[LLM] defense_strategies failed: {e}")
+        logger.warning(f"defense_strategies failed: {e}")
         return {}
 
 
@@ -254,11 +278,11 @@ def _parse_json(result) -> dict:
     return {}
 
 
-def analyze_ad(youtube_url: str, job_id: str, video_id: str = "", force_fresh: bool = False):
+def analyze_ad(api_key: str, youtube_url: str, job_id: str, video_id: str = "", force_fresh: bool = False):
     db = get_db()
 
     try:
-        conn = videodb.connect()
+        conn = videodb.connect(api_key=api_key)
         coll = conn.get_collection()
 
         if video_id:
@@ -392,10 +416,10 @@ def analyze_ad(youtube_url: str, job_id: str, video_id: str = "", force_fresh: b
             msg = "AI analysis failed — the model service returned an error. Please try again."
         elif "compile" in msg.lower() or "render" in msg.lower() or "ffmpeg" in msg.lower():
             msg = "Video rendering failed — unable to produce the annotated output."
-        elif len(msg) > 200:
+        else:
             msg = "An unexpected error occurred during processing."
         _fail(db, job_id, msg)
-        print(f"[FAIL] {job_id}: {traceback.format_exc()}")
+        logger.error(f"Job {job_id} failed: {msg}\n{traceback.format_exc()}")
     finally:
         db.close()
 

@@ -7,6 +7,11 @@ import ProgressTracker from "@/app/components/ProgressTracker";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+function getApiKey(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("adxray_api_key");
+}
+
 interface SceneResult {
   start_time: number;
   end_time: number;
@@ -53,7 +58,10 @@ export default function ResultPage() {
 
   const poll = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/status/${jobId}`);
+      const apiKey = getApiKey() || "";
+      const res = await fetch(`${API_URL}/api/status/${jobId}`, {
+        headers: { "X-VideoDB-Key": apiKey },
+      });
       if (!res.ok) {
         setError("Job not found");
         return;
@@ -62,7 +70,9 @@ export default function ResultPage() {
 
       if (status.status === "completed" || status.status === "failed") {
         try {
-          const finalRes = await fetch(`${API_URL}/api/result/${jobId}`);
+          const finalRes = await fetch(`${API_URL}/api/result/${jobId}`, {
+            headers: { "X-VideoDB-Key": apiKey },
+          });
           if (finalRes.ok) {
             setData(await finalRes.json());
           } else {

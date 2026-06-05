@@ -3,13 +3,24 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import URLInput from "./components/URLInput";
+import ApiKeyGate from "./components/ApiKeyGate";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+function getApiKey(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("adxray_api_key");
+}
+
 export default function Home() {
   const router = useRouter();
+  const [apiKey, setApiKey] = useState<string | null>(() => getApiKey());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  if (!apiKey) {
+    return <ApiKeyGate onKeySet={setApiKey} />;
+  }
 
   const handleSubmit = async (url: string, videoId?: string) => {
     setSubmitting(true);
@@ -24,7 +35,7 @@ export default function Home() {
 
       const res = await fetch(`${API_URL}/api/analyze`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-VideoDB-Key": apiKey || "" },
         body: JSON.stringify(body),
       });
 
@@ -156,9 +167,20 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <span className="text-sm font-mono text-primary uppercase tracking-widest">Ad-Xray</span>
           </div>
-          <p className="text-xs text-text-subtle">
-            An art project about power, perception, and manufactured desire.
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-xs text-text-subtle">
+              An art project about power, perception, and manufactured desire.
+            </p>
+            <button
+              onClick={() => {
+                localStorage.removeItem("adxray_api_key");
+                setApiKey(null);
+              }}
+              className="text-xs text-text-subtle hover:text-danger transition-colors cursor-pointer"
+            >
+              Change API Key
+            </button>
+          </div>
         </div>
       </footer>
     </main>

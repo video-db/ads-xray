@@ -28,6 +28,7 @@ def init_db():
             defense_json TEXT DEFAULT '{}',
             video_name TEXT DEFAULT '',
             video_id_used TEXT DEFAULT '',
+            api_key_hash TEXT DEFAULT '',
             error TEXT,
             created_at TEXT NOT NULL,
             completed_at TEXT
@@ -47,6 +48,10 @@ def init_db():
     """)
     try:
         conn.execute("ALTER TABLE jobs ADD COLUMN defense_json TEXT DEFAULT '{}'")
+    except sqlite3.OperationalError:
+        pass
+    try:
+        conn.execute("ALTER TABLE jobs ADD COLUMN api_key_hash TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
     conn.commit()

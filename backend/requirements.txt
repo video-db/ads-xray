@@ -1,5 +1,6 @@
-videodb
-fastapi
-uvicorn[standard]
-python-dotenv
-pydantic
+fastapi==0.128.8
+pydantic==2.13.3
+pydantic_core==2.46.3
+python-dotenv==1.2.1
+uvicorn==0.39.0
+videodb==0.3.0
