@@ -112,6 +112,7 @@ export default function ResultPage() {
             </svg>
           </div>
           <p className="text-text-muted">{error}</p>
+          <a href="/" className="text-xs text-primary hover:underline cursor-pointer mt-4 inline-block">← Back</a>
         </div>
       </main>
     );
@@ -163,6 +164,7 @@ export default function ResultPage() {
           </div>
           <h2 className="text-xl font-light text-foreground mb-2">Analysis Failed</h2>
           <p className="text-text-muted mt-1">{data.error || "Something went wrong. Please try again."}</p>
+          <a href="/" className="text-xs text-primary hover:underline cursor-pointer mt-4 inline-block">← Back</a>
         </div>
       </main>
     );

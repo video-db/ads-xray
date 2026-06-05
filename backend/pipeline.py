@@ -4,9 +4,6 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dotenv import load_dotenv
-
-load_dotenv()
 
 import videodb
 from videodb import SceneExtractionType, MediaType

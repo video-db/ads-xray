@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 
 interface SceneResult {
@@ -123,6 +124,7 @@ function buildMarkdown(report: ReportProps): string {
 }
 
 export default function VideoPlayer(report: ReportProps) {
+  const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -181,8 +183,14 @@ export default function VideoPlayer(report: ReportProps) {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => router.push("/")}
+            className="text-xs text-primary hover:underline cursor-pointer"
+          >
+            ← Back
+          </button>
+          <button
             onClick={handleCopy}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface border border-border text-xs sm:text-sm text-text-muted hover:text-foreground hover:border-primary/30 transition-all duration-200 cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface border border-border text-xs sm:text-xs text-text-muted hover:text-foreground hover:border-primary/30 transition-all duration-200 cursor-pointer"
           >
             {copied ? (
               <>
