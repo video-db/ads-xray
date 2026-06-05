@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import videodb
-from videodb import SceneExtractionType, SearchType
+from videodb import SceneExtractionType, SearchType, MediaType
 
 from db import get_db
 from timeline_builder import build_timeline
@@ -24,12 +24,15 @@ Be precise. Name exact techniques. No introductory text."""
 
 
 def _parse_overlay(description: str) -> str:
-    match = re.search(r"OVERLAY:\s*(.+?)(?:\n|$)", description, re.IGNORECASE)
-    if match:
-        return match.group(1).strip().strip('"').strip("'")
+    try:
+        match = re.search(r"OVERLAY:\s*(.+?)(?:\n|$)", description, re.IGNORECASE)
+        if match:
+            return match.group(1).strip().strip('"').strip("'")
+    except Exception:
+        pass
     fallback = re.search(r"(?<=MANIPULATION:).+?(?=\n|$)", description)
     if fallback:
-        return fallback.group(1).strip()[:100]
+        return fallback.group(0).strip()[:100]
     return description.strip()[:120]
 
 
@@ -41,7 +44,7 @@ def analyze_ad(youtube_url: str, job_id: str):
         coll = conn.get_collection()
 
         _update(db, job_id, "processing", "uploading")
-        video = coll.upload(url=youtube_url)
+        video = coll.upload(url=youtube_url, media_type=MediaType.video)
         video_duration = float(video.length)
 
         _update(db, job_id, "processing", "analyzing_scenes")

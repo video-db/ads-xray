@@ -17,6 +17,8 @@ from videodb.editor import (
 
 
 def build_timeline(conn, video_id: str, total_duration: float, scenes: list[dict]) -> str:
+    dur = int(float(total_duration))
+
     timeline = Timeline(conn)
     timeline.resolution = "1920x1080"
     timeline.background = "#000000"
@@ -26,36 +28,44 @@ def build_timeline(conn, video_id: str, total_duration: float, scenes: list[dict
         0,
         Clip(
             asset=VideoAsset(id=video_id, volume=1.0),
-            duration=total_duration,
+            duration=dur,
             fit=Fit.contain,
         ),
     )
 
     text_track = Track()
     for scene in scenes:
-        start = scene["start"]
-        duration = scene["duration"]
-        overlay = scene["overlay_text"]
+        start = int(scene["start"])
+        overlay_dur = int(scene["duration"])
+        if start + overlay_dur > dur:
+            overlay_dur = dur - start
+        if overlay_dur <= 0:
+            continue
 
         text_track.add_clip(
             start,
             Clip(
                 asset=TextAsset(
-                    text=overlay,
-                    font=Font(family="Clear Sans", size=32, color="#FFFFFF", opacity=1.0),
+                    text=scene["overlay_text"],
+                    font=Font(
+                        family="Inter",
+                        size=28,
+                        color="#FFFFFF",
+                        opacity=1.0,
+                    ),
                     background=Background(
                         width=1700,
-                        height=90,
+                        height=80,
                         color="#0EA5E9",
                         opacity=0.85,
                         text_alignment=TextAlignment.center,
                     ),
-                    border=Border(color="#38BDF8", width=2.0),
+                    border=Border(color="#38BDF8", width=1.5),
                     shadow=Shadow(color="#000000", x=0, y=2),
                 ),
-                duration=duration,
-                position=Position.bottom_center,
-                offset=Offset(x=0, y=-0.06),
+                duration=overlay_dur,
+                position=Position.bottom,
+                offset=Offset(x=0, y=-0.04),
                 transition=Transition(in_="fade", out="fade", duration=0.3),
             ),
         )
@@ -63,5 +73,4 @@ def build_timeline(conn, video_id: str, total_duration: float, scenes: list[dict
     timeline.add_track(video_track)
     timeline.add_track(text_track)
 
-    stream_url = timeline.generate_stream()
-    return stream_url
+    return timeline.generate_stream()
