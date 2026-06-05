@@ -11,27 +11,53 @@ from videodb import SceneExtractionType, MediaType
 from db import get_db
 from timeline_builder import build_timeline
 
-SCENE_PROMPT = "Describe this advertisement scene in detail. Note colors, subjects, action, mood."
+SCENE_PROMPT = (
+    "As a forensic advertising psychologist, describe how this scene contributes to "
+    "the ad's manipulation narrative. Note: shot type (close-up/wide/tracking), "
+    "composition, lighting and color palette, movement and pacing, what emotion is "
+    "manufactured, what is deliberately shown or hidden, and any visual persuasion "
+    "technique at work. Be precise and concise — one paragraph."
+)
 
 INTELLIGENCE_PROMPT = """You are a forensic advertising psychologist. Analyze this raw scene-by-scene breakdown of an advertisement and produce a polished psychological report.
 
 Raw scene data:
 {scenes_text}
 
+GROUPING RULE: Each key moment must combine 3-8 adjacent shots that together form a psychological beat. Never assign one key moment per single shot. Look for groups of shots that share a manipulation thread — shots 1-5 might establish mystery, shots 6-10 might manufacture desire, etc.
+
+OVERLAY PATTERN: Structure each overlay as "[What is visually shown and how] → [What psychological manipulation it serves]". Examples:
+- "Warm golden lighting and slow-motion family scenes evoke nostalgia, linking the product to emotional security and fear of losing precious moments"
+- "The car emerges from complete darkness — deliberately withholding visual information to build anticipation and project exclusivity"
+NOT labels like "Mysterious opening" or descriptions like "Family scene" — these expose nothing.
+
 Return a JSON object with these exact fields:
 {{
-  "breakdown": "2 paragraph psychological analysis of the ad's overall strategy. Use bullet points for key insights. Be sharp, critical, and specific — no fluff.",
+  "breakdown": "A 2-paragraph psychological analysis using - bullet points for key insights. Be sharp, critical, and specific — no fluff. Start each bullet with '- '.",
   "primary_technique": "Name the ONE primary psychological technique",
   "emotional_triggers": ["list", "of", "triggered", "emotions"],
   "cognitive_biases": ["list", "of", "exploited", "biases"],
   "ad_archetype": "e.g. Aspirational Luxury, Fear-Based, Problem-Solution, Identity Sale",
   "target_audience": "Brief description of who this ad targets",
+  "symbols_exploited": ["Symbol = ImpliedMeaning", "e.g. Sports Car=Freedom, Watch=Legacy, Child=Responsibility"],
   "key_moments": [
-    {{"start_time": 0.0, "end_time": 3.2, "insight": "What happens and why it's manipulative", "overlay": "10-15 word on-screen overlay text"}}
+    {{
+      "start_time": 0.0,
+      "end_time": 5.5,
+      "insight": "A detailed 1-2 sentence description of what happens in this segment and why it's psychologically manipulative",
+      "overlay": "A 15-25 word sentence using the evidence→manipulation pattern — explain WHAT is shown AND WHY it manipulates"
+    }}
   ]
 }}
 
-IMPORTANT: key_moments should have 3-10 entries. Each entry MUST have real start_time/end_time from the raw data. Overlay text should be punchy, exposing manipulation. Return ONLY valid JSON, no markdown wrapping."""
+IMPORTANT RULES:
+- key_moments must have 3-7 entries total. Quality over quantity.
+- Each key moment must span 4-12 seconds, combining 3-8 adjacent raw scenes.
+- start_time = start of the FIRST raw scene in the group
+- end_time = end of the LAST raw scene in the group
+- overlay must use the evidence→manipulation pattern, exposing HOW the visuals persuade
+- symbols_exploited should list what cultural symbols are being leveraged (cars=freedom, watches=status, etc.)
+- Return ONLY valid JSON, no markdown wrapping."""
 
 AUDIO_PROMPT = """Analyze this advertisement transcript for psychological manipulation in the spoken words.
 
@@ -50,12 +76,84 @@ Return JSON:
 
 Return ONLY valid JSON, no markdown wrapping."""
 
+MAX_SCENES_CHARS = 80000
+
+MERGE_PROMPT = """You are a forensic advertising psychologist. Combine these partial analyses of an advertisement into ONE unified psychological report.
+
+Partial analyses:
+{partial_reports}
+
+Synthesize a cohesive report covering the ENTIRE ad. Return JSON with these exact fields:
+{{
+  "breakdown": "A unified 2-paragraph psychological analysis using - bullet points.",
+  "primary_technique": "Name the ONE primary psychological technique across the whole ad",
+  "emotional_triggers": ["list", "of", "triggered", "emotions"],
+  "cognitive_biases": ["list", "of", "exploited", "biases"],
+  "ad_archetype": "e.g. Aspirational Luxury, Fear-Based, Problem-Solution, Identity Sale",
+  "target_audience": "Brief description",
+  "symbols_exploited": ["Symbol = ImpliedMeaning"],
+  "key_moments": [
+    {{
+      "start_time": 0.0,
+      "end_time": 5.5,
+      "insight": "...",
+      "overlay": "15-25 word explanatory sentence using evidence→manipulation pattern"
+    }}
+  ]
+}}
+
+IMPORTANT: Select the BEST 4-7 key moments across all partial analyses. Each must span 4-12 seconds. Deduplicate overlapping moments. Return ONLY valid JSON, no markdown wrapping."""
+
 
 def _build_intelligence_layer(coll, scenes_text: str) -> dict:
+    if len(scenes_text) <= MAX_SCENES_CHARS:
+        return _single_pass_analysis(coll, scenes_text)
+
+    chunks = _split_scenes_into_chunks(scenes_text, MAX_SCENES_CHARS // 2)
+    partial_reports = []
+    for chunk in chunks:
+        report = _single_pass_analysis(coll, chunk)
+        partial_reports.append(report)
+
+    if len(partial_reports) == 1:
+        return partial_reports[0]
+
+    return _merge_partial_reports(coll, partial_reports)
+
+
+def _single_pass_analysis(coll, scenes_text: str) -> dict:
     result = coll.generate_text(
         prompt=INTELLIGENCE_PROMPT.format(scenes_text=scenes_text),
         response_type="json",
-        model_name="basic",
+        model_name="pro",
+    )
+    return _parse_json(result)
+
+
+def _split_scenes_into_chunks(scenes_text: str, max_chars: int) -> list:
+    scenes = [s for s in scenes_text.split("\n\n") if s.strip()]
+    chunks = []
+    current = ""
+    for scene in scenes:
+        if len(current) + len(scene) + 2 > max_chars and current:
+            chunks.append(current.rstrip("\n"))
+            current = scene + "\n\n"
+        else:
+            current += scene + "\n\n"
+    if current.strip():
+        chunks.append(current.rstrip("\n"))
+    return chunks
+
+
+def _merge_partial_reports(coll, reports: list) -> dict:
+    partial_text = ""
+    for i, r in enumerate(reports):
+        partial_text += f"### Analysis {i + 1}\n{json.dumps(r, indent=2)}\n\n"
+
+    result = coll.generate_text(
+        prompt=MERGE_PROMPT.format(partial_reports=partial_text),
+        response_type="json",
+        model_name="pro",
     )
     return _parse_json(result)
 
@@ -64,7 +162,7 @@ def _build_audio_analysis(coll, transcript: str) -> dict:
     result = coll.generate_text(
         prompt=AUDIO_PROMPT.format(transcript=transcript),
         response_type="json",
-        model_name="basic",
+        model_name="pro",
     )
     return _parse_json(result)
 
@@ -178,6 +276,12 @@ def analyze_ad(youtube_url: str, job_id: str, video_id: str = ""):
             }
             for km in key_moments
         ]
+
+        long_enough = [s for s in scenes_for_timeline if s["duration"] >= 5.0]
+        if long_enough:
+            scenes_for_timeline = long_enough
+        else:
+            scenes_for_timeline = sorted(scenes_for_timeline, key=lambda s: s["duration"], reverse=True)[:3]
 
         db.commit()
 

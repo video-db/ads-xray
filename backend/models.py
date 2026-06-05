@@ -39,5 +39,6 @@ class ResultResponse(BaseModel):
     cognitive_biases: list[str] = []
     ad_archetype: str = ""
     target_audience: str = ""
+    symbols_exploited: list[str] = []
     narrative: Optional[dict] = None
     error: Optional[str] = None

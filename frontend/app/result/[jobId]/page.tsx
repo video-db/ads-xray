@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import ProgressTracker from "@/app/components/ProgressTracker";
 import VideoPlayer from "@/app/components/VideoPlayer";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -38,6 +37,7 @@ interface JobResult {
   cognitive_biases?: string[];
   ad_archetype?: string;
   target_audience?: string;
+  symbols_exploited?: string[];
   narrative?: Narrative | null;
   error?: string;
 }
@@ -106,16 +106,10 @@ export default function ResultPage() {
     );
   }
 
-  return (
-    <main className="flex-1 flex flex-col px-6 py-12">
-      <div className="max-w-5xl mx-auto w-full">
-        <ProgressTracker
-          status={data.status as "pending" | "processing" | "completed" | "failed"}
-          progress={data.status === "completed" ? "done" : data.status === "failed" ? "error" : "processing"}
-          error={data.error}
-        />
-
-        {data.status === "completed" && data.stream_url && (
+  if (data.status === "completed" && data.stream_url) {
+    return (
+      <main className="flex-1 flex flex-col px-6 py-12">
+        <div className="max-w-5xl mx-auto w-full">
           <VideoPlayer
             streamUrl={data.stream_url}
             scenes={data.scenes}
@@ -125,13 +119,20 @@ export default function ResultPage() {
             cognitiveBiases={data.cognitive_biases}
             adArchetype={data.ad_archetype}
             targetAudience={data.target_audience}
+            symbolsExploited={data.symbols_exploited}
             narrative={data.narrative}
             videoName={data.video_name}
             youtubeUrl={data.youtube_url}
             duration={data.duration}
           />
-        )}
-      </div>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="flex-1 flex items-center justify-center px-6">
+      <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
     </main>
   );
 }

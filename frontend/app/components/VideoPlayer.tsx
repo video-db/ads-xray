@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 interface SceneResult {
   start_time: number;
@@ -27,6 +28,7 @@ interface ReportProps {
   cognitiveBiases?: string[];
   adArchetype?: string;
   targetAudience?: string;
+  symbolsExploited?: string[];
   narrative?: Narrative | null;
   videoName?: string;
   youtubeUrl?: string;
@@ -78,6 +80,12 @@ function buildMarkdown(report: ReportProps): string {
   if (report.cognitiveBiases?.length) {
     lines.push(`### 🧠 Cognitive Biases`, ``);
     report.cognitiveBiases.forEach((b) => lines.push(`- ${b}`));
+    lines.push(``);
+  }
+
+  if (report.symbolsExploited?.length) {
+    lines.push(`### 🔣 Symbols Exploited`, ``);
+    report.symbolsExploited.forEach((s) => lines.push(`- ${s}`));
     lines.push(``);
   }
 
@@ -149,10 +157,10 @@ export default function VideoPlayer(report: ReportProps) {
             </>
           ) : (
             <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-3-3v6m-7 4h14a1 1 0 001-1V7a1 1 0 00-1-1H5a1 1 0 00-1 1v11a1 1 0 001 1z" />
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
-              Copy Report (Markdown)
+              Copy
             </>
           )}
         </button>
@@ -176,21 +184,15 @@ export default function VideoPlayer(report: ReportProps) {
               <h3 className="text-sm font-mono text-primary uppercase tracking-wider mb-4">
                 Psychological Breakdown
               </h3>
-              <div className="prose prose-invert max-w-none text-text-muted leading-relaxed text-sm space-y-2">
-                {report.breakdown.split(/\n•\s|\n- /).map((chunk, i) => {
-                  if (i === 0) return <p key={i}>{chunk.replace(/^•\s?/, "")}</p>;
-                  return (
-                    <p key={i} className="flex gap-2">
-                      <span className="text-primary flex-shrink-0">—</span>
-                      <span>{chunk}</span>
-                    </p>
-                  );
-                })}
+              <div className="prose prose-invert max-w-none text-text-muted text-sm">
+                <ReactMarkdown>
+                  {report.breakdown.replace(/^•\s/gm, "- ")}
+                </ReactMarkdown>
               </div>
             </section>
           )}
 
-          {report.narrative && (
+          {report.narrative && (report.narrative.strategy || (report.narrative.key_phrases && report.narrative.key_phrases.length > 0)) && (
             <section className="p-6 rounded-card bg-surface border border-border">
               <h3 className="text-sm font-mono text-primary uppercase tracking-wider mb-4">
                 Narrative Manipulation
@@ -251,6 +253,19 @@ export default function VideoPlayer(report: ReportProps) {
                 {report.cognitiveBiases.map((b) => (
                   <span key={b} className="text-xs px-2.5 py-1 rounded-full bg-warning/10 text-warning font-mono">
                     {b}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {report.symbolsExploited && report.symbolsExploited.length > 0 && (
+            <div className="p-6 rounded-card bg-surface border border-border">
+              <span className="text-xs font-mono text-primary uppercase tracking-wider">Symbols Exploited</span>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {report.symbolsExploited.map((s) => (
+                  <span key={s} className="text-xs px-2.5 py-1 rounded-full bg-subtle text-text-muted font-mono">
+                    {s}
                   </span>
                 ))}
               </div>

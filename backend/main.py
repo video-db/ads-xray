@@ -102,6 +102,7 @@ def get_result(job_id: str):
         cognitive_biases=report.get("cognitive_biases", []) or [],
         ad_archetype=report.get("ad_archetype", ""),
         target_audience=report.get("target_audience", ""),
+        symbols_exploited=report.get("symbols_exploited", []) or [],
         narrative=narrative if narrative else None,
         error=row["error"],
     )
