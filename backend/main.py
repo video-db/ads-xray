@@ -216,14 +216,22 @@ def get_result(request: Request, job_id: str, api_key: str = Header(..., alias="
 
 
 @app.get("/api/history")
-def get_history(request: Request, api_key: str = Header(..., alias="X-VideoDB-Key")):
+def get_history(request: Request, api_key: str = Header(..., alias="X-VideoDB-Key"), page: int = 1, per_page: int = 10):
     _check_rate(request, _hash_key(api_key), _RATE_LIMIT_GET)
+    per_page = max(1, min(per_page, 50))
 
     key_hash = _hash_key(api_key)
     db = get_db()
-    rows = db.execute(
-        "SELECT id, video_name, youtube_url, status, progress, duration, error, report_json, created_at FROM jobs WHERE api_key_hash=? ORDER BY created_at DESC LIMIT 50",
+
+    total = db.execute(
+        "SELECT COUNT(*) FROM jobs WHERE api_key_hash=?",
         (key_hash,),
+    ).fetchone()[0]
+
+    offset = (page - 1) * per_page
+    rows = db.execute(
+        "SELECT id, video_name, youtube_url, status, duration, error, report_json, created_at FROM jobs WHERE api_key_hash=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        (key_hash, per_page, offset),
     ).fetchall()
     db.close()
 
@@ -241,15 +249,20 @@ def get_history(request: Request, api_key: str = Header(..., alias="X-VideoDB-Ke
         results.append({
             "job_id": r["id"],
             "video_name": r["video_name"] or "",
-            "youtube_url": r["youtube_url"] or "",
             "status": r["status"],
-            "progress": r["progress"],
             "duration": r["duration"],
             "manipulation_score": score,
+            "primary_technique": report.get("primary_technique", ""),
             "error": r["error"],
             "created_at": r["created_at"],
         })
-    return {"runs": results}
+    return {
+        "runs": results,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": max(1, (total + per_page - 1) // per_page),
+    }
 
 
 @app.get("/api/health")
