@@ -1,5 +1,6 @@
 import re
 import uuid
+import math
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -11,30 +12,25 @@ from videodb import SceneExtractionType, SearchType
 from db import get_db
 from timeline_builder import build_timeline
 
-AD_DECONSTRUCTION_PROMPT = """You are a forensic advertising psychologist. Analyze this advertisement frame by frame. For each scene, identify:
+AD_DECONSTRUCTION_PROMPT = """You are a forensic ad psychologist. For each scene, identify the psychological manipulation at work. Output in this exact format:
 
-1. VISUAL LANGUAGE: Colors used and their psychological associations (warm/cold), lighting style, camera angles, composition techniques
-2. EMOTIONAL TRIGGERS ACTIVATED: nostalgia, aspiration, fear, desire, belonging, inadequacy, joy, security, excitement, comfort
-3. COGNITIVE BIASES EMPLOYED: social proof, scarcity, authority bias, halo effect, anchoring, loss aversion, bandwagon effect
-4. SYMBOLISM: What cultural symbols are being deployed (e.g., cars=freedom, watches=status, children=responsibility, luxury interiors=wealth)
-5. NARRATIVE FUNCTION: Is this setup, conflict, resolution, or climax? What story is being told?
-6. TARGETED BEHAVIOR: What action does the advertiser want the viewer to take after watching?
-7. PRIMARY PERSUASIVE TECHNIQUE: The single most powerful psychological mechanism at work in this scene
+MANIPULATION: [Name the primary persuasive technique - be technically specific]
+VISUAL: [Colors, lighting, camera, composition - and their psychological associations]
+EMOTION: [Which specific feeling the scene manufactures in the viewer]
+EXPLOIT: [Which human desire, fear, or insecurity is being weaponized]
+OVERLAY: [A 10-15 word punchy commentary to expose the manipulation on screen]
 
-Be specific and technical. Do not be vague. Name the exact technique, bias, or trigger being used."""
+Be precise. Name exact techniques. No introductory text."""
 
-COMMENTARY_PROMPT_TEMPLATE = """You are creating overlay commentary for a video that exposes how advertisements manipulate viewers. 
 
-Based on this forensic scene analysis:
-{analysis}
-
-Write ONE concise overlay caption (10-15 words) that exposes the psychological manipulation to the viewer. Make it direct and punchy. Use formats like:
-- "Primary trigger: [emotion] + [emotion]"
-- "This scene exploits [bias/technique]"
-- "[Symbol] sells [idea], not [product]"
-- "[Color/lighting] evokes [emotion]"
-
-Return ONLY the caption text, nothing else. No quotes, no prefixes."""
+def _parse_overlay(description: str) -> str:
+    match = re.search(r"OVERLAY:\s*(.+?)(?:\n|$)", description, re.IGNORECASE)
+    if match:
+        return match.group(1).strip().strip('"').strip("'")
+    fallback = re.search(r"(?<=MANIPULATION:).+?(?=\n|$)", description)
+    if fallback:
+        return fallback.group(1).strip()[:100]
+    return description.strip()[:120]
 
 
 def analyze_ad(youtube_url: str, job_id: str):
@@ -52,8 +48,8 @@ def analyze_ad(youtube_url: str, job_id: str):
         scene_index_id = None
         try:
             scene_index_id = video.index_scenes(
-                extraction_type=SceneExtractionType.shot_based,
-                extraction_config={"threshold": 20, "frame_count": 1},
+                extraction_type=SceneExtractionType.time_based,
+                extraction_config={"time": 5, "frame_count": 2},
                 prompt=AD_DECONSTRUCTION_PROMPT,
             )
         except Exception as e:
@@ -71,17 +67,13 @@ def analyze_ad(youtube_url: str, job_id: str):
 
         _update(db, job_id, "processing", "generating_commentary")
         scenes_with_commentary = []
-        for i, scene in enumerate(scenes_data):
+        for scene in scenes_data:
             start = float(scene.get("start", 0))
             end = float(scene.get("end", 0))
             description = scene.get("description", "")
             dur = max(end - start, 2.0)
 
-            result = coll.generate_text(
-                prompt=COMMENTARY_PROMPT_TEMPLATE.format(analysis=description),
-                response_type="text",
-            )
-            overlay_text = result.get("output", "").strip().strip('"').strip("'")
+            overlay_text = _parse_overlay(description)
 
             scenes_with_commentary.append({
                 "start": start,

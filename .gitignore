@@ -31,5 +31,14 @@ Thumbs.db
 # Python venv
 backend/venv/
 
+# Test artifacts
+backend/test_*.py
+backend/test_videos/
+backend/videodb_test_*
+
+# PDF and generated markdown
+*.pdf
+Ad-XRay.md
+
 # Logs
 *.log
