@@ -35,6 +35,19 @@ logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 
 app = FastAPI(title="Ad-Xray API", version="0.2.0")
 
+
+@app.on_event("startup")
+def _cleanup_orphaned_jobs():
+    try:
+        db = get_db()
+        db.execute(
+            "UPDATE jobs SET status='failed', progress='error', error='Server restarted — please retry' WHERE status='processing'"
+        )
+        db.commit()
+        db.close()
+    except Exception:
+        pass
+
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
 app.add_middleware(
@@ -230,13 +243,13 @@ def get_history(request: Request, api_key: str = Header(..., alias="X-VideoDB-Ke
     db = get_db()
 
     total = db.execute(
-        "SELECT COUNT(*) FROM jobs WHERE api_key_hash=? AND status IN ('completed','failed')",
+        "SELECT COUNT(*) FROM jobs WHERE api_key_hash=? AND status IN ('completed','failed','processing')",
         (key_hash,),
     ).fetchone()[0]
 
     offset = (page - 1) * per_page
     rows = db.execute(
-        "SELECT id, video_name, status, duration, error, report_json, created_at FROM jobs WHERE api_key_hash=? AND status IN ('completed','failed') ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        "SELECT id, video_name, status, progress, duration, error, report_json, youtube_url, created_at FROM jobs WHERE api_key_hash=? AND status IN ('completed','failed','processing') ORDER BY created_at DESC LIMIT ? OFFSET ?",
         (key_hash, per_page, offset),
     ).fetchall()
     db.close()
@@ -256,10 +269,12 @@ def get_history(request: Request, api_key: str = Header(..., alias="X-VideoDB-Ke
             "job_id": r["id"],
             "video_name": r["video_name"] or "",
             "status": r["status"],
+            "progress": r["progress"] or "",
             "duration": r["duration"],
             "manipulation_score": score,
             "primary_technique": report.get("primary_technique", ""),
             "error": r["error"],
+            "youtube_url": r["youtube_url"] or "",
             "created_at": r["created_at"],
         })
     return {

@@ -42,6 +42,23 @@ export default function HistoryPage() {
       .finally(() => setLoading(false));
   }, [apiKey, mounted, page]);
 
+  useEffect(() => {
+    const hasProcessing = runs.some((r) => r.status === "processing");
+    if (!hasProcessing) return;
+    const interval = setInterval(() => {
+      fetch(`${API_URL}/api/history?page=${page}&per_page=${PER_PAGE}`, {
+        headers: { "X-VideoDB-Key": apiKey! },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          setRuns(data.runs || []);
+          setTotalPages(data.total_pages || 1);
+        })
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [runs, page, apiKey]);
+
   if (!mounted) return null;
 
   if (!apiKey) {
@@ -89,17 +106,39 @@ export default function HistoryPage() {
           <>
             <div className="space-y-1.5">
               {runs
-                .filter((r) => r.status === "completed" || r.status === "failed")
+                .filter((r) => r.status === "completed" || r.status === "failed" || r.status === "processing")
                 .map((run) => (
-                  <HistoryCard
-                    key={run.job_id}
-                    run={run}
-                    onClick={() => {
-                      if (run.status === "completed") {
-                        router.push(`/result/${run.job_id}`);
-                      }
-                    }}
-                  />
+                  <div key={run.job_id} className="flex items-center gap-3">
+                    <HistoryCard
+                      run={run}
+                      onClick={() => {
+                        if (run.status === "completed" || run.status === "processing") {
+                          router.push(`/result/${run.job_id}`);
+                        }
+                      }}
+                    />
+                    {run.status === "failed" && run.youtube_url && (
+                      <button
+                        onClick={async () => {
+                          const key = getApiKey() || "";
+                          try {
+                            const res = await fetch(`${API_URL}/api/analyze`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", "X-VideoDB-Key": key },
+                              body: JSON.stringify({ youtube_url: run.youtube_url }),
+                            });
+                            if (res.ok) {
+                              const { job_id } = await res.json();
+                              router.push(`/result/${job_id}`);
+                            }
+                          } catch {}
+                        }}
+                        className="text-xs text-primary hover:underline cursor-pointer flex-shrink-0 ml-2"
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </div>
                 ))}
             </div>
 

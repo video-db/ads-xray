@@ -77,7 +77,7 @@ def build_timeline(conn, video_id: str, total_duration: float, scenes: list[dict
                         width=1720,
                         height=box_height,
                         color="#0369A1",
-                        opacity=0.65,
+                        opacity=0.95,
                         text_alignment=TextAlignment.center,
                     ),
                     border=Border(color="#0C4A6E", width=1.0),

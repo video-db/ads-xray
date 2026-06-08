@@ -2,9 +2,12 @@ import re
 import json
 import hashlib
 import logging
+import typing
+import time as _time
 from datetime import datetime, timezone
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 
+import requests
 import videodb
 from videodb import SceneExtractionType, MediaType
 
@@ -12,6 +15,31 @@ from db import get_db
 from timeline_builder import build_timeline
 
 logger = logging.getLogger("adxray")
+
+_TIMEOUT = 300
+
+_original_session_request = requests.Session.request
+
+def _patched_request(self, method, url, **kwargs):
+    kwargs.setdefault("timeout", _TIMEOUT)
+    return _original_session_request(self, method, url, **kwargs)
+
+requests.Session.request = _patched_request
+
+
+def _timed_call(step_name: str, fn: typing.Callable, *args, **kwargs) -> typing.Any:
+    ex = ThreadPoolExecutor(max_workers=1)
+    future = ex.submit(fn, *args, **kwargs)
+    t0 = _time.perf_counter()
+    try:
+        result = future.result(timeout=_TIMEOUT)
+        logger.info(f"[TIMING] {step_name}: {_time.perf_counter() - t0:.1f}s")
+        return result
+    except FutureTimeoutError:
+        logger.info(f"[TIMING] {step_name}: TIMED_OUT after {_time.perf_counter() - t0:.1f}s")
+        raise TimeoutError(f"Timed out at: {step_name} ({_TIMEOUT // 60} min limit) — retry with a shorter video")
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
 
 SCENE_PROMPT = (
     "As a forensic advertising psychologist, describe how this scene contributes to "
@@ -183,7 +211,9 @@ def _build_intelligence_layer(coll, scenes_text: str) -> dict:
 
 def _single_pass_analysis(coll, scenes_text: str) -> dict:
     try:
-        result = coll.generate_text(
+        result = _timed_call(
+            "synthesizing_report",
+            coll.generate_text,
             prompt=INTELLIGENCE_PROMPT.format(scenes_text=scenes_text),
             response_type="json",
             model_name="pro",
@@ -215,7 +245,9 @@ def _merge_partial_reports(coll, reports: list) -> dict:
         for i, r in enumerate(reports):
             partial_text += f"### Analysis {i + 1}\n{json.dumps(r, indent=2)}\n\n"
 
-        result = coll.generate_text(
+        result = _timed_call(
+            "synthesizing_report",
+            coll.generate_text,
             prompt=MERGE_PROMPT.format(partial_reports=partial_text),
             response_type="json",
             model_name="pro",
@@ -228,7 +260,9 @@ def _merge_partial_reports(coll, reports: list) -> dict:
 
 def _build_audio_analysis(coll, transcript: str) -> dict:
     try:
-        result = coll.generate_text(
+        result = _timed_call(
+            "analyzing_audio",
+            coll.generate_text,
             prompt=AUDIO_PROMPT.format(transcript=transcript),
             response_type="json",
             model_name="pro",
@@ -250,7 +284,9 @@ def _build_defense_strategies(coll, report: dict) -> dict:
             "target_audience": report.get("target_audience", ""),
             "breakdown": report.get("breakdown", "")[:800],
         })
-        result = coll.generate_text(
+        result = _timed_call(
+            "generating_defense",
+            coll.generate_text,
             prompt=DEFENSE_PROMPT.format(report_summary=summary),
             response_type="json",
             model_name="pro",
@@ -284,10 +320,10 @@ def analyze_ad(api_key: str, youtube_url: str, job_id: str, video_id: str = "", 
 
         if video_id:
             _update(db, job_id, "processing", "loading_video")
-            video = coll.get_video(video_id)
+            video = _timed_call("loading_video", coll.get_video, video_id)
         else:
             _update(db, job_id, "processing", "uploading")
-            video = coll.upload(url=youtube_url, media_type=MediaType.video)
+            video = _timed_call("uploading", coll.upload, url=youtube_url, media_type=MediaType.video)
         video_duration = float(video.length)
 
         video_name = ""
@@ -296,17 +332,29 @@ def analyze_ad(api_key: str, youtube_url: str, job_id: str, video_id: str = "", 
         except Exception:
             pass
 
+        db.execute(
+            "UPDATE jobs SET video_name=?, duration=?, video_id_used=? WHERE id=?",
+            (video_name, video_duration, video.id, job_id),
+        )
+        db.commit()
+
         _update(db, job_id, "processing", "indexing_shots")
         scene_index_id = None
         extraction_config = {"threshold": 25, "frame_count": 1}
         if force_fresh:
             extraction_config["cache_key"] = job_id
         try:
-            scene_index_id = video.index_scenes(
+            scene_index_id = _timed_call(
+                "indexing_shots",
+                video.index_scenes,
                 extraction_type=SceneExtractionType.shot_based,
                 extraction_config=extraction_config,
                 prompt=SCENE_PROMPT,
             )
+        except TimeoutError as e:
+            _fail(db, job_id, str(e))
+            logger.error(f"Job {job_id} timed out: {e}")
+            return
         except Exception as e:
             match = re.search(r"id\s+([a-f0-9]+)", str(e))
             if match:
@@ -314,7 +362,7 @@ def analyze_ad(api_key: str, youtube_url: str, job_id: str, video_id: str = "", 
             else:
                 raise
 
-        scenes_raw = video.get_scene_index(scene_index_id)
+        scenes_raw = _timed_call("get_scene_index", video.get_scene_index, scene_index_id)
         if not scenes_raw:
             _fail(db, job_id, "No scenes detected.")
             return
@@ -328,11 +376,11 @@ def analyze_ad(api_key: str, youtube_url: str, job_id: str, video_id: str = "", 
 
         transcript = ""
         try:
-            video.index_spoken_words()
+            _timed_call("index_spoken_words", video.index_spoken_words)
         except Exception:
             pass
         try:
-            transcript = video.get_transcript_text() or ""
+            transcript = _timed_call("get_transcript", video.get_transcript_text) or ""
         except Exception:
             pass
 
@@ -386,7 +434,7 @@ def analyze_ad(api_key: str, youtube_url: str, job_id: str, video_id: str = "", 
         db.commit()
 
         _update(db, job_id, "processing", "rendering_video")
-        stream_url = build_timeline(conn, video.id, video_duration, scenes_for_timeline)
+        stream_url = _timed_call("rendering_video", build_timeline, conn, video.id, video_duration, scenes_for_timeline)
 
         report_json = json.dumps(report)
         narrative_json = json.dumps(narrative) if narrative else "{}"

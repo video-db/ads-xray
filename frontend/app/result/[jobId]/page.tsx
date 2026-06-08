@@ -154,6 +154,7 @@ export default function ResultPage() {
   }
 
   if (data.status === "failed") {
+    const retryUrl = data.youtube_url || data.error?.match(/https?:\/\/[^\s]+/)?.[0] || "";
     return (
       <main className="flex-1 flex items-center justify-center px-6">
         <div className="text-center py-12">
@@ -164,15 +165,49 @@ export default function ResultPage() {
           </div>
           <h2 className="text-xl font-light text-foreground mb-2">Analysis Failed</h2>
           <p className="text-text-muted mt-1">{data.error || "Something went wrong. Please try again."}</p>
-          <a href="/" className="text-xs text-primary hover:underline cursor-pointer mt-4 inline-block">← Back</a>
+          <div className="flex items-center justify-center gap-3 mt-6">
+            <a href="/" className="text-xs text-text-subtle hover:text-foreground cursor-pointer">← Back</a>
+            {retryUrl && (
+              <button
+                onClick={async () => {
+                  const apiKey = getApiKey() || "";
+                  try {
+                    const res = await fetch(`${API_URL}/api/analyze`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", "X-VideoDB-Key": apiKey },
+                      body: JSON.stringify({ youtube_url: retryUrl }),
+                    });
+                    if (res.ok) {
+                      const { job_id } = await res.json();
+                      window.location.href = `/result/${job_id}`;
+                    } else {
+                      const d = await res.json().catch(() => ({}));
+                      setData({ job_id: jobId as string, status: "failed", error: d.detail || "Retry failed" });
+                    }
+                  } catch {
+                    setData({ job_id: jobId as string, status: "failed", error: "Retry failed — backend unreachable" });
+                  }
+                }}
+                className="text-xs px-4 py-2 rounded-full bg-primary text-white hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
+            )}
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="flex-1 flex items-center justify-center px-6">
+    <main className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
       <ProgressTracker progress={data.progress || "queued"} />
+      <button
+        onClick={() => window.location.href = "/"}
+        className="text-xs text-text-subtle hover:text-foreground cursor-pointer transition-colors"
+      >
+        Run in Background →
+      </button>
     </main>
   );
 }

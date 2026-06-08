@@ -30,7 +30,9 @@ export default function HistoryCard({
     >
       <span
         className={`w-2 h-2 rounded-full flex-shrink-0 ${
-          run.status === "failed" ? "bg-danger" : "bg-success"
+          run.status === "failed" ? "bg-danger" :
+          run.status === "processing" ? "bg-warning animate-pulse" :
+          "bg-success"
         }`}
       />
       <div className="flex-1 min-w-0">
@@ -38,7 +40,9 @@ export default function HistoryCard({
           {run.video_name || "Untitled"}
         </span>
         <span className="text-[11px] text-text-subtle block truncate">
-          {run.primary_technique && `${run.primary_technique} · `}
+          {run.status === "processing" && run.progress
+            ? `${run.progress.replace(/_/g, " ")} · `
+            : run.primary_technique && `${run.primary_technique} · `}
           {run.duration ? `${Math.round(run.duration)}s` : ""}
           {run.duration ? " · " : ""}
           {formatTimeAgo(run.created_at)}

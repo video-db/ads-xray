@@ -17,10 +17,12 @@ export interface HistoryRun {
   job_id: string;
   video_name: string;
   status: string;
+  progress: string;
   manipulation_score: number;
   primary_technique: string;
   duration: number;
   error: string;
+  youtube_url: string;
   created_at: string;
 }
 
@@ -47,6 +49,20 @@ export default function Home() {
       .then((data) => setHistory(data.runs || []))
       .catch(() => {});
   }, [apiKey, mounted]);
+
+  useEffect(() => {
+    const hasProcessing = history.some((r) => r.status === "processing");
+    if (!hasProcessing) return;
+    const interval = setInterval(() => {
+      fetch(`${API_URL}/api/history?per_page=10`, {
+        headers: { "X-VideoDB-Key": apiKey! },
+      })
+        .then((r) => r.json())
+        .then((data) => setHistory(data.runs || []))
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [history, apiKey]);
 
   function handleKeySet(key: string) {
     localStorage.setItem("adxray_api_key", key);
@@ -133,18 +149,26 @@ export default function Home() {
               </button>
             </div>
             <div className="space-y-1.5">
+              {history.filter((r) => r.status === "processing").map((run) => (
+                <HistoryCard key={run.job_id} run={run} onClick={() => router.push(`/result/${run.job_id}`)} />
+              ))}
               {history.filter((r) => r.status === "completed").slice(0, 4).map((run) => (
                 <HistoryCard key={run.job_id} run={run} onClick={() => router.push(`/result/${run.job_id}`)} />
               ))}
               {history.filter((r) => r.status === "failed").slice(0, 2).map((run) => (
-                <div
-                  key={run.job_id}
-                  className="flex items-center gap-3 px-4 py-3 rounded-card bg-surface border border-border opacity-50"
-                >
+                <div key={run.job_id} className="flex items-center gap-3 px-4 py-3 rounded-card bg-surface border border-border">
                   <span className="w-2 h-2 rounded-full bg-danger flex-shrink-0" />
                   <span className="text-sm text-text-muted truncate flex-1">
-                    {run.video_name || "Unknown"} — Failed
+                    {run.video_name || "Unknown"} — {run.error || "Failed"}
                   </span>
+                  {run.youtube_url && (
+                    <button
+                      onClick={() => handleSubmit(run.youtube_url)}
+                      className="text-xs text-primary hover:underline cursor-pointer flex-shrink-0"
+                    >
+                      Retry
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
